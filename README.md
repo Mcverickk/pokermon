@@ -6,7 +6,7 @@ Anyone with the URL can **watch**. Editing a live game needs the **4-digit PIN**
 
 ## Stack
 
-Next.js, Tailwind, Drizzle, Neon Postgres. Deploy on Vercel.
+Next.js, Tailwind, Drizzle, Neon Postgres. Deploy on Vercel
 
 ## Setup
 
