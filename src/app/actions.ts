@@ -1,7 +1,7 @@
 "use server";
 
 import { and, eq, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, refresh, updateTag } from "next/cache";
 import { cookies } from "next/headers";
 import {
   chipConservation,
@@ -10,7 +10,14 @@ import {
 } from "@/lib/ledger";
 import { getDb } from "@/lib/db";
 import { gamePlayers, games, players, transfers } from "@/lib/db/schema";
-import { getGame, getLiveGame } from "@/lib/db/queries";
+import {
+  BOARD_CACHE_TAG,
+  LIVE_GAME_TAG,
+  ROSTER_CACHE_TAG,
+  getGame,
+  getLiveGame,
+  warmBoardCache,
+} from "@/lib/db/queries";
 import { hashPin, isFourDigitPin, verifyPin } from "@/lib/pin";
 import {
   mintSession,
@@ -71,6 +78,20 @@ function revalidateAll(gameId?: string) {
   }
 }
 
+export async function refreshBoardCache() {
+  updateTag(BOARD_CACHE_TAG);
+  refresh();
+}
+
+export async function refreshLiveCache() {
+  updateTag(LIVE_GAME_TAG);
+  refresh();
+}
+
+export async function warmBoardAfterSettle(playerIds: string[], gameId: string) {
+  await warmBoardCache(playerIds, gameId);
+}
+
 export async function unlockGame(
   gameId: string,
   pin: string,
@@ -118,7 +139,9 @@ export async function unlockGame(
   return { ok: true };
 }
 
-async function findOrCreatePlayer(name: string): Promise<string> {
+async function findOrCreatePlayer(
+  name: string,
+): Promise<{ id: string; created: boolean }> {
   const trimmed = name.trim().replace(/\s+/g, " ");
   if (!trimmed) throw new Error("Name is empty");
   const db = getDb();
@@ -129,13 +152,13 @@ async function findOrCreatePlayer(name: string): Promise<string> {
       person.name.toLowerCase() === needle ||
       (person.aliases ?? []).some((alias) => alias.toLowerCase() === needle),
   );
-  if (existing) return existing.id;
+  if (existing) return { id: existing.id, created: false };
 
   const [created] = await db
     .insert(players)
     .values({ name: trimmed, aliases: [] })
     .returning({ id: players.id });
-  return created.id;
+  return { id: created.id, created: true };
 }
 
 export async function createGame(input: {
@@ -185,11 +208,13 @@ export async function createGame(input: {
 
   const rows: { gameId: string; playerId: string; buyIns: number }[] = [];
   const seen = new Set<string>();
+  let rosterChanged = false;
   for (const seat of input.seats) {
-    const playerId = await findOrCreatePlayer(seat.name);
-    if (seen.has(playerId)) continue;
-    seen.add(playerId);
-    rows.push({ gameId: game.id, playerId, buyIns: seat.buyIns });
+    const player = await findOrCreatePlayer(seat.name);
+    if (player.created) rosterChanged = true;
+    if (seen.has(player.id)) continue;
+    seen.add(player.id);
+    rows.push({ gameId: game.id, playerId: player.id, buyIns: seat.buyIns });
   }
   if (rows.length < 2) {
     await db.delete(games).where(eq(games.id, game.id));
@@ -198,6 +223,8 @@ export async function createGame(input: {
   await db.insert(gamePlayers).values(rows);
   await setUnlockCookie(game.id);
   revalidateAll(game.id);
+  updateTag(LIVE_GAME_TAG);
+  if (rosterChanged) updateTag(ROSTER_CACHE_TAG);
   return { ok: true, gameId: game.id };
 }
 
@@ -228,6 +255,7 @@ export async function changeBuyIns(
     return { ok: false, error: "Cannot take that buy-in off." };
   }
   revalidateAll(gameId);
+  updateTag(LIVE_GAME_TAG);
   return { ok: true, buyIns: updated.buyIns };
 }
 
@@ -240,14 +268,18 @@ export async function addPlayerToGame(
   if (gate) return gate;
   if (buyIns < 1) return { ok: false, error: "Start with at least one buy-in." };
 
-  const playerId = await findOrCreatePlayer(name);
+  const player = await findOrCreatePlayer(name);
   const db = getDb();
   try {
-    await db.insert(gamePlayers).values({ gameId, playerId, buyIns });
+    await db
+      .insert(gamePlayers)
+      .values({ gameId, playerId: player.id, buyIns });
   } catch {
     return { ok: false, error: "That player is already on the table." };
   }
   revalidateAll(gameId);
+  updateTag(LIVE_GAME_TAG);
+  if (player.created) updateTag(ROSTER_CACHE_TAG);
   return { ok: true };
 }
 
@@ -323,5 +355,7 @@ export async function settleGame(
     .where(eq(games.id, gameId));
 
   revalidateAll(gameId);
+  updateTag(BOARD_CACHE_TAG);
+  updateTag(LIVE_GAME_TAG);
   return { ok: true };
 }

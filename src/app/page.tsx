@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { isUnlocked } from "@/app/actions";
 import { LiveTable } from "@/components/LiveTable";
-import { PokerChip } from "@/components/PokerChip";
+import { ChipShuffle } from "@/components/PokerChip";
 import { isDbConfigured } from "@/lib/db";
 import { getLiveGame, listRoster } from "@/lib/db/queries";
 
@@ -13,16 +13,8 @@ export default async function TablePage() {
   const game = await getLiveGame();
   if (!game) {
     return (
-      <div className="flex flex-1 flex-col justify-center gap-6 py-10">
-        <div className="relative mx-auto h-28 w-40">
-          <div className="playing-card absolute left-6 top-2 h-24 w-16 -rotate-12" />
-          <div className="playing-card absolute right-6 top-2 flex h-24 w-16 rotate-12 items-center justify-center text-2xl text-clay">
-            ♥
-          </div>
-          <span className="absolute bottom-0 left-1/2 -translate-x-1/2">
-            <PokerChip size={48} />
-          </span>
-        </div>
+      <div className="flex flex-1 flex-col justify-center gap-6 py-10 lg:mx-auto lg:max-w-lg">
+        <ChipShuffle />
         <div>
           <p className="text-xs font-medium tracking-[0.18em] text-gold uppercase">
             House table
@@ -36,7 +28,7 @@ export default async function TablePage() {
         </div>
         <Link
           href="/new"
-          className="btn-primary flex h-14 items-center justify-center text-sm font-semibold"
+          className="btn-primary flex h-14 items-center justify-center text-sm font-semibold lg:max-w-sm"
         >
           New game
         </Link>
@@ -54,7 +46,7 @@ export default async function TablePage() {
 
 function SetupNotice() {
   return (
-    <div className="flex flex-1 flex-col justify-center gap-4 py-10">
+    <div className="flex flex-1 flex-col justify-center gap-4 py-10 lg:mx-auto lg:max-w-lg">
       <p className="text-xs font-medium tracking-[0.18em] text-gold uppercase">
         Setup
       </p>

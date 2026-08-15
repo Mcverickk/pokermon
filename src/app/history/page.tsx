@@ -22,11 +22,11 @@ export default async function HistoryPage() {
           </p>
           <h1 className="font-display text-4xl tracking-tight">Nights</h1>
         </div>
-        <RefreshButton className="mt-1" />
+        <RefreshButton className="mt-1" scope="board" />
       </header>
       <Link
         href="/new"
-        className="btn-ghost flex h-12 items-center justify-center text-sm font-medium"
+        className="btn-ghost flex h-12 items-center justify-center text-sm font-medium lg:max-w-xs"
       >
         New game
       </Link>
@@ -34,7 +34,7 @@ export default async function HistoryPage() {
       {nights.length === 0 ? (
         <p className="text-mute">No nights in the book yet. Settle a table first.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-2 lg:grid lg:grid-cols-2">
           {nights.map((night) => (
             <li key={night.id}>
               <Link

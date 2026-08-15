@@ -75,7 +75,7 @@ export function LiveTable({
             {inr(game.buyInCash)} / {chips(game.stackValue)}
           </p>
         </div>
-        <RefreshButton className="mt-1" />
+        <RefreshButton className="mt-1" scope="live" />
       </header>
 
       <div className="glass flex items-center justify-between rounded-full px-4 py-2.5">
@@ -97,7 +97,7 @@ export function LiveTable({
 
       {error ? <p className="text-sm text-clay">{error}</p> : null}
 
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-3 lg:grid lg:grid-cols-2">
         {game.players.map((seat, i) => (
           <li
             key={seat.playerId}
@@ -144,7 +144,7 @@ export function LiveTable({
         ))}
       </ul>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 lg:flex-row lg:max-w-xl">
         <button
           type="button"
           onClick={() => {
@@ -154,7 +154,7 @@ export function LiveTable({
             }
             setAddOpen(true);
           }}
-          className="btn-ghost h-12 text-sm font-medium"
+          className="btn-ghost h-12 text-sm font-medium lg:flex-1"
         >
           Add player
         </button>
@@ -166,7 +166,7 @@ export function LiveTable({
               setPinOpen(true);
             }
           }}
-          className="btn-primary flex h-14 items-center justify-center text-sm font-semibold"
+          className="btn-primary flex h-14 items-center justify-center text-sm font-semibold lg:flex-1"
         >
           End game · cash out
         </Link>
@@ -251,7 +251,7 @@ function ConfirmStrip({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-20 z-40 mx-auto max-w-md px-4">
+    <div className="fixed inset-x-0 bottom-20 z-40 mx-auto max-w-md px-4 lg:bottom-auto lg:top-1/2 lg:-translate-y-1/2">
       <div className="glass-strong rounded-3xl p-4">
         <p className="text-sm text-ivory">{text}</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
@@ -291,8 +291,8 @@ function AddPlayer({
   const [buyIns, setBuyIns] = useState(1);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-felt-deep/70 p-4 backdrop-blur-md">
-      <div className="glass-strong w-full rounded-3xl p-5">
+    <div className="fixed inset-0 z-50 flex items-end bg-felt-deep/70 p-4 backdrop-blur-md lg:items-center">
+      <div className="glass-strong w-full rounded-3xl p-5 lg:mx-auto lg:max-w-md">
         <p className="font-display text-3xl tracking-tight">Pull up a chair</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {roster.map((p) => (

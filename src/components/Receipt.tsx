@@ -35,7 +35,7 @@ export function Receipt({ game }: { game: GameDetail }) {
 
       <article
         aria-label="Ace of spades receipt"
-        className="playing-card relative flex min-h-[26rem] flex-col justify-center overflow-hidden px-11 py-16"
+        className="playing-card relative mx-auto flex min-h-[26rem] w-full max-w-md flex-col justify-center overflow-hidden px-11 py-16"
         style={{ background: "#f7f2ea", color: "#1b1714" }}
       >
         <AceIndex className="absolute left-3 top-3" />

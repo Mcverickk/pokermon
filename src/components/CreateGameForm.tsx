@@ -84,117 +84,121 @@ export function CreateGameForm({ roster }: { roster: Roster }) {
         </p>
       </header>
 
-      <section>
-        <p className="text-xs font-medium text-mute">Regulars</p>
-        <ul className="mt-3 flex flex-col gap-2">
-          {roster.map((person) => {
-            const on = Boolean(selected[person.id]);
-            return (
-              <li
-                key={person.id}
-                className={`glass flex items-center justify-between rounded-2xl px-3 py-2.5 ${
-                  on ? "ring-1 ring-gold/50" : ""
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => toggle(person.id)}
-                  className="flex-1 text-left font-display text-lg tracking-tight"
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
+        <section>
+          <p className="text-xs font-medium text-mute">Regulars</p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {roster.map((person) => {
+              const on = Boolean(selected[person.id]);
+              return (
+                <li
+                  key={person.id}
+                  className={`glass flex items-center justify-between rounded-2xl px-3 py-2.5 ${
+                    on ? "ring-1 ring-gold/50" : ""
+                  }`}
                 >
-                  {person.name}
-                </button>
-                {on ? (
-                  <Stepper
-                    value={selected[person.id]}
-                    onChange={(n) =>
-                      setSelected((cur) => ({ ...cur, [person.id]: n }))
-                    }
-                  />
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+                  <button
+                    type="button"
+                    onClick={() => toggle(person.id)}
+                    className="flex-1 text-left font-display text-lg tracking-tight"
+                  >
+                    {person.name}
+                  </button>
+                  {on ? (
+                    <Stepper
+                      value={selected[person.id]}
+                      onChange={(n) =>
+                        setSelected((cur) => ({ ...cur, [person.id]: n }))
+                      }
+                    />
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
 
-      <section>
-        <p className="text-xs font-medium text-mute">Add a name</p>
-        <div className="mt-2 flex gap-2">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Who sat down?"
-            className="min-w-0 flex-1 rounded-2xl bg-ivory/8 px-4 py-3 text-ivory placeholder:text-mute"
-          />
+        <div className="flex flex-col gap-6">
+          <section>
+            <p className="text-xs font-medium text-mute">Add a name</p>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Who sat down?"
+                className="min-w-0 flex-1 rounded-2xl bg-ivory/8 px-4 py-3 text-ivory placeholder:text-mute"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const name = draft.trim();
+                  if (!name) return;
+                  setExtra((cur) => [...cur, { name, buyIns: 1 }]);
+                  setDraft("");
+                }}
+                className="btn-ghost px-4 text-sm font-medium"
+              >
+                Add
+              </button>
+            </div>
+            {extra.map((person, i) => (
+              <div
+                key={`${person.name}-${i}`}
+                className="glass mt-2 flex items-center justify-between rounded-2xl px-3 py-2.5 ring-1 ring-gold/40"
+              >
+                <span className="font-display text-lg">{person.name}</span>
+                <Stepper
+                  value={person.buyIns}
+                  onChange={(n) =>
+                    setExtra((cur) =>
+                      cur.map((row, idx) =>
+                        idx === i ? { ...row, buyIns: n } : row,
+                      ),
+                    )
+                  }
+                />
+              </div>
+            ))}
+          </section>
+
+          <section className="grid grid-cols-2 gap-3">
+            <label className="glass rounded-2xl p-4">
+              <span className="text-xs text-mute">Buy-in ₹</span>
+              <input
+                type="number"
+                min={1}
+                value={buyInCash}
+                onChange={(e) => setBuyInCash(Number(e.target.value))}
+                className="mt-1 w-full bg-transparent font-display text-2xl tabular text-ivory outline-none"
+              />
+            </label>
+            <label className="glass rounded-2xl p-4">
+              <span className="text-xs text-mute">Chip stack</span>
+              <input
+                type="number"
+                min={1}
+                value={stackValue}
+                onChange={(e) => setStackValue(Number(e.target.value))}
+                className="mt-1 w-full bg-transparent font-display text-2xl tabular text-ivory outline-none"
+              />
+            </label>
+          </section>
+
+          {error ? <p className="text-sm text-clay">{error}</p> : null}
+
           <button
             type="button"
-            onClick={() => {
-              const name = draft.trim();
-              if (!name) return;
-              setExtra((cur) => [...cur, { name, buyIns: 1 }]);
-              setDraft("");
-            }}
-            className="btn-ghost px-4 text-sm font-medium"
+            disabled={pending}
+            onClick={startNight}
+            className="btn-primary h-14 text-sm font-semibold disabled:opacity-50"
           >
-            Add
+            {pending ? "Opening…" : "Start · set PIN"}
           </button>
+          <p className="text-center text-xs text-mute">
+            Don’t lose this PIN — it cannot be reset.
+          </p>
         </div>
-        {extra.map((person, i) => (
-          <div
-            key={`${person.name}-${i}`}
-            className="glass mt-2 flex items-center justify-between rounded-2xl px-3 py-2.5 ring-1 ring-gold/40"
-          >
-            <span className="font-display text-lg">{person.name}</span>
-            <Stepper
-              value={person.buyIns}
-              onChange={(n) =>
-                setExtra((cur) =>
-                  cur.map((row, idx) =>
-                    idx === i ? { ...row, buyIns: n } : row,
-                  ),
-                )
-              }
-            />
-          </div>
-        ))}
-      </section>
-
-      <section className="grid grid-cols-2 gap-3">
-        <label className="glass rounded-2xl p-4">
-          <span className="text-xs text-mute">Buy-in ₹</span>
-          <input
-            type="number"
-            min={1}
-            value={buyInCash}
-            onChange={(e) => setBuyInCash(Number(e.target.value))}
-            className="mt-1 w-full bg-transparent font-display text-2xl tabular text-ivory outline-none"
-          />
-        </label>
-        <label className="glass rounded-2xl p-4">
-          <span className="text-xs text-mute">Chip stack</span>
-          <input
-            type="number"
-            min={1}
-            value={stackValue}
-            onChange={(e) => setStackValue(Number(e.target.value))}
-            className="mt-1 w-full bg-transparent font-display text-2xl tabular text-ivory outline-none"
-          />
-        </label>
-      </section>
-
-      {error ? <p className="text-sm text-clay">{error}</p> : null}
-
-      <button
-        type="button"
-        disabled={pending}
-        onClick={startNight}
-        className="btn-primary h-14 text-sm font-semibold disabled:opacity-50"
-      >
-        {pending ? "Opening…" : "Start · set PIN"}
-      </button>
-      <p className="text-center text-xs text-mute">
-        Don’t lose this PIN — it cannot be reset.
-      </p>
+      </div>
 
       {pad ? (
         <PinPad

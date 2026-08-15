@@ -1,7 +1,8 @@
-import { getPlayerName, getPlayerNights } from "@/lib/db/queries";
-import { formatNight, inr } from "@/lib/ledger";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { RefreshButton } from "@/components/RefreshButton";
+import { getPlayerName, getPlayerNights } from "@/lib/db/queries";
+import { formatNight, inr } from "@/lib/ledger";
 
 export const dynamic = "force-dynamic";
 
@@ -21,21 +22,24 @@ export default async function PlayerBoardPage({
       <Link href="/board" className="text-sm text-gold">
         ← Board
       </Link>
-      <header>
-        <h1 className="font-display text-4xl tracking-tight">{name}</h1>
-        <p
-          className={`mt-1 font-display text-2xl tabular ${
-            net > 0 ? "text-gold" : net < 0 ? "text-clay" : "text-mute"
-          }`}
-        >
-          {net > 0 ? "+" : net < 0 ? "−" : ""}
-          {inr(Math.abs(net))} lifetime
-        </p>
+      <header className="flex items-start justify-between">
+        <div>
+          <h1 className="font-display text-4xl tracking-tight">{name}</h1>
+          <p
+            className={`mt-1 font-display text-2xl tabular ${
+              net > 0 ? "text-gold" : net < 0 ? "text-clay" : "text-mute"
+            }`}
+          >
+            {net > 0 ? "+" : net < 0 ? "−" : ""}
+            {inr(Math.abs(net))} lifetime
+          </p>
+        </div>
+        <RefreshButton className="mt-1" scope="board" />
       </header>
       {nights.length === 0 ? (
         <p className="text-mute">No settled nights yet.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-2 lg:grid lg:grid-cols-2">
           {nights.map((night) => (
             <li key={night.gameId}>
               <Link

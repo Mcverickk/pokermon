@@ -87,6 +87,72 @@ body {
   box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.2);
 }
 
+.chip-shuffle {
+  position: relative;
+  display: block;
+  width: 14rem;
+  height: 7.25rem;
+  margin-inline: auto;
+}
+
+.chip-shuffle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0.45rem;
+  width: 6.25rem;
+  height: 0.75rem;
+  translate: -50% 0;
+  background: radial-gradient(ellipse, rgb(0 0 0 / 0.55), transparent 70%);
+}
+
+.chip-shuffle-piece {
+  position: absolute;
+  left: 50%;
+  bottom: 0.55rem;
+  width: 5.15rem;
+  height: 1.72rem;
+  translate: -50% 0;
+  animation: chip-riffle-front 2.8s cubic-bezier(0.42, 0.08, 0.18, 1) infinite;
+  animation-delay: calc(var(--pile) * 60ms);
+}
+
+.chip-side {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 3px 5px rgb(0 0 0 / 0.42));
+}
+
+@keyframes chip-riffle-front {
+  0%,
+  12%,
+  100% {
+    transform: translate(0, calc(var(--n) * -0.78rem));
+    z-index: var(--n);
+  }
+  30%,
+  42% {
+    transform: translate(
+      calc(var(--dir) * 3.45rem),
+      calc(var(--pile) * -0.78rem)
+    );
+    z-index: var(--pile);
+  }
+  58% {
+    transform: translate(
+      calc(var(--dir) * 0.95rem),
+      calc(var(--n) * -0.78rem - 1.15rem)
+    );
+    z-index: var(--n);
+  }
+  74% {
+    transform: translate(0, calc(var(--n) * -0.78rem - 0.4rem));
+    z-index: var(--n);
+  }
+}
+
 .playing-card {
   background: var(--color-paper);
   color: #1b1714;

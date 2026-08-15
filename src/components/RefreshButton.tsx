@@ -2,8 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { refreshBoardCache, refreshLiveCache } from "@/app/actions";
 
-export function RefreshButton({ className = "" }: { className?: string }) {
+export function RefreshButton({
+  className = "",
+  scope,
+}: {
+  className?: string;
+  scope?: "board" | "live";
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [spin, setSpin] = useState(false);
@@ -13,8 +20,10 @@ export function RefreshButton({ className = "" }: { className?: string }) {
       type="button"
       onClick={() => {
         setSpin(true);
-        start(() => {
-          router.refresh();
+        start(async () => {
+          if (scope === "board") await refreshBoardCache();
+          else if (scope === "live") await refreshLiveCache();
+          else router.refresh();
           setTimeout(() => setSpin(false), 400);
         });
       }}

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { settleGame, unlockGame } from "@/app/actions";
+import { settleGame, unlockGame, warmBoardAfterSettle } from "@/app/actions";
 import type { GameDetail } from "@/lib/db/queries";
 import { chipConservation, chips, inr } from "@/lib/ledger";
 import { PinPad } from "./PinPad";
@@ -62,6 +62,10 @@ export function CashoutForm({
         if (result.needsPin) setPinOpen(true);
         return;
       }
+      await warmBoardAfterSettle(
+        game.players.map((p) => p.playerId),
+        game.id,
+      );
       router.push(`/game/${game.id}/settle`);
     });
   }
@@ -78,10 +82,10 @@ export function CashoutForm({
             Final chips, not rupees. Stack was {chips(game.stackValue)} each.
           </p>
         </div>
-        <RefreshButton className="mt-1" />
+        <RefreshButton className="mt-1" scope="live" />
       </header>
 
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col gap-2 lg:grid lg:grid-cols-2">
         {game.players.map((seat) => (
           <li
             key={seat.playerId}
@@ -140,7 +144,7 @@ export function CashoutForm({
         type="button"
         disabled={pending || !allFilled || !conservation.ok}
         onClick={submit}
-        className="btn-primary h-14 text-sm font-semibold disabled:opacity-40"
+        className="btn-primary h-14 text-sm font-semibold disabled:opacity-40 lg:max-w-xs"
       >
         {pending ? "Settling…" : `Settle · ${inr(game.buyInCash)} buy-in`}
       </button>

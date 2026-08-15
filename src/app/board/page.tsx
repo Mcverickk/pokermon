@@ -22,8 +22,11 @@ export default async function BoardPage() {
             House rail
           </p>
           <h1 className="font-display text-4xl tracking-tight">Board</h1>
+          <p className="mt-1 text-sm text-mute">
+            Open a name for nights and P/L.
+          </p>
         </div>
-        <RefreshButton className="mt-1" />
+        <RefreshButton className="mt-1" scope="board" />
       </header>
 
       {rows.length === 0 ? (
@@ -33,10 +36,11 @@ export default async function BoardPage() {
       ) : (
         <ol className="glass flex flex-col overflow-hidden rounded-3xl">
           {rows.map((row, i) => (
-            <li key={row.playerId}>
+            <li key={row.playerId} className="border-b border-ivory/8 last:border-b-0">
               <Link
                 href={`/board/${row.playerId}`}
-                className="flex items-center gap-3 border-b border-ivory/8 px-4 py-3 last:border-b-0"
+                aria-label={`${row.name} history`}
+                className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-ivory/6"
               >
                 <span className="w-7 font-display text-lg tabular text-gold">
                   {String(i + 1).padStart(2, "0")}
@@ -60,11 +64,28 @@ export default async function BoardPage() {
                   {row.net > 0 ? "+" : row.net < 0 ? "−" : ""}
                   {inr(Math.abs(row.net))}
                 </span>
+                <span className="text-mute transition-colors group-hover:text-gold" aria-hidden>
+                  <Chevron />
+                </span>
               </Link>
             </li>
           ))}
         </ol>
       )}
     </div>
+  );
+}
+
+function Chevron() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M6 3.5 11 8l-5 4.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
