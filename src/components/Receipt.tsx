@@ -1,22 +1,8 @@
-"use client";
-
-import { toBlob } from "html-to-image";
-import { useRef, useState } from "react";
 import type { GameDetail } from "@/lib/db/queries";
-import {
-  formatNight,
-  formatReceipt,
-  handleTotal,
-  inr,
-  scoreSeats,
-} from "@/lib/ledger";
+import { formatNight, handleTotal, inr, scoreSeats } from "@/lib/ledger";
 import { RefreshButton } from "./RefreshButton";
 
 export function Receipt({ game }: { game: GameDetail }) {
-  const cardRef = useRef<HTMLElement>(null);
-  const [copied, setCopied] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const [shareHint, setShareHint] = useState<string | null>(null);
   const seats = scoreSeats(
     game.players.map((p) => ({
       playerId: p.playerId,
@@ -32,59 +18,6 @@ export function Receipt({ game }: { game: GameDetail }) {
     game.players.reduce((sum, p) => sum + p.buyIns, 0),
     game.buyInCash,
   );
-  const text = formatReceipt({
-    playedOn: game.playedOn,
-    buyInCash: game.buyInCash,
-    stackValue: game.stackValue,
-    handle,
-    seats,
-    transfers: game.transfers,
-  });
-
-  async function copy() {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  async function shareCard() {
-    const node = cardRef.current;
-    if (!node || sharing) return;
-    setSharing(true);
-    setShareHint(null);
-    try {
-      await document.fonts.ready;
-      const blob = await toBlob(node, {
-        pixelRatio: 2,
-        cacheBust: true,
-        backgroundColor: "#f7f2ea",
-      });
-      if (!blob) throw new Error("Could not make the card image.");
-      const stamp = game.playedOn.toISOString().slice(0, 10);
-      const file = new File([blob], `pokermon-${stamp}.png`, {
-        type: "image/png",
-      });
-      const payload = { files: [file] };
-      if (navigator.share && navigator.canShare?.(payload)) {
-        await navigator.share(payload);
-        return;
-      }
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = file.name;
-      link.click();
-      URL.revokeObjectURL(url);
-      setShareHint("Saved the card — attach it in WhatsApp.");
-      setTimeout(() => setShareHint(null), 2500);
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      setShareHint("Could not share the card. Copy the text instead.");
-      setTimeout(() => setShareHint(null), 2500);
-    } finally {
-      setSharing(false);
-    }
-  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -101,7 +34,6 @@ export function Receipt({ game }: { game: GameDetail }) {
       </header>
 
       <article
-        ref={cardRef}
         aria-label="Ace of spades receipt"
         className="playing-card relative flex min-h-[26rem] flex-col justify-center overflow-hidden px-11 py-16"
         style={{ background: "#f7f2ea", color: "#1b1714" }}
@@ -159,27 +91,6 @@ export function Receipt({ game }: { game: GameDetail }) {
           )}
         </div>
       </article>
-
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={copy}
-          className="btn-ghost h-12 text-sm font-medium"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
-        <button
-          type="button"
-          onClick={shareCard}
-          disabled={sharing}
-          className="btn-primary h-12 text-sm font-semibold disabled:opacity-60"
-        >
-          {sharing ? "Sharing…" : "WhatsApp"}
-        </button>
-      </div>
-      {shareHint ? (
-        <p className="text-center text-xs text-mute">{shareHint}</p>
-      ) : null}
     </div>
   );
 }
