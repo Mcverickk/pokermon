@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Chevron } from "@/components/Chevron";
 import { RefreshButton } from "@/components/RefreshButton";
 import { getPlayerName, getPlayerNights } from "@/lib/db/queries";
 import { formatNight, inr } from "@/lib/ledger";
@@ -44,20 +45,26 @@ export default async function PlayerBoardPage({
             <li key={night.gameId}>
               <Link
                 href={`/game/${night.gameId}/settle`}
-                className="glass flex items-baseline justify-between rounded-2xl px-4 py-3"
+                aria-label={`${formatNight(night.playedOn)} receipt`}
+                className="group glass flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition-colors hover:bg-ivory/6"
               >
                 <span>{formatNight(night.playedOn)}</span>
-                <span
-                  className={`tabular ${
-                    night.moneyDiff > 0
-                      ? "text-gold"
-                      : night.moneyDiff < 0
-                        ? "text-clay"
-                        : "text-mute"
-                  }`}
-                >
-                  {night.moneyDiff > 0 ? "+" : night.moneyDiff < 0 ? "−" : ""}
-                  {inr(Math.abs(night.moneyDiff))}
+                <span className="flex items-center gap-2">
+                  <span
+                    className={`tabular ${
+                      night.moneyDiff > 0
+                        ? "text-gold"
+                        : night.moneyDiff < 0
+                          ? "text-clay"
+                          : "text-mute"
+                    }`}
+                  >
+                    {night.moneyDiff > 0 ? "+" : night.moneyDiff < 0 ? "−" : ""}
+                    {inr(Math.abs(night.moneyDiff))}
+                  </span>
+                  <span className="text-mute transition-colors group-hover:text-gold">
+                    <Chevron />
+                  </span>
                 </span>
               </Link>
             </li>

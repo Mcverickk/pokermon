@@ -1,3 +1,4 @@
+import { Chevron } from "@/components/Chevron";
 import { RefreshButton } from "@/components/RefreshButton";
 import { isDbConfigured } from "@/lib/db";
 import { listSettledGames } from "@/lib/db/queries";
@@ -21,6 +22,9 @@ export default async function HistoryPage() {
             The book
           </p>
           <h1 className="font-display text-4xl tracking-tight">Nights</h1>
+          <p className="mt-1 text-sm text-mute">
+            Open a night for the receipt.
+          </p>
         </div>
         <RefreshButton className="mt-1" scope="board" />
       </header>
@@ -39,13 +43,19 @@ export default async function HistoryPage() {
             <li key={night.id}>
               <Link
                 href={`/game/${night.id}/settle`}
-                className="glass flex items-baseline justify-between rounded-2xl px-4 py-3"
+                aria-label={`${formatNight(night.playedOn)} receipt`}
+                className="group glass flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition-colors hover:bg-ivory/6"
               >
                 <span className="font-display text-lg tracking-tight">
                   {formatNight(night.playedOn)}
                 </span>
-                <span className="text-sm tabular text-gold">
-                  {inr(night.handle)} · {night.playerCount}
+                <span className="flex items-center gap-2">
+                  <span className="text-sm tabular text-gold">
+                    {inr(night.handle)} · {night.playerCount}
+                  </span>
+                  <span className="text-mute transition-colors group-hover:text-gold">
+                    <Chevron />
+                  </span>
                 </span>
               </Link>
             </li>

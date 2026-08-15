@@ -1,3 +1,4 @@
+import { Chevron } from "@/components/Chevron";
 import { PokerChip } from "@/components/PokerChip";
 import { RefreshButton } from "@/components/RefreshButton";
 import { isDbConfigured } from "@/lib/db";
@@ -64,7 +65,7 @@ export default async function BoardPage() {
                   {row.net > 0 ? "+" : row.net < 0 ? "−" : ""}
                   {inr(Math.abs(row.net))}
                 </span>
-                <span className="text-mute transition-colors group-hover:text-gold" aria-hidden>
+                <span className="text-mute transition-colors group-hover:text-gold">
                   <Chevron />
                 </span>
               </Link>
@@ -73,19 +74,5 @@ export default async function BoardPage() {
         </ol>
       )}
     </div>
-  );
-}
-
-function Chevron() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path
-        d="M6 3.5 11 8l-5 4.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
