@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export function PinPad({
   title,
@@ -20,7 +20,7 @@ export function PinPad({
   const [digits, setDigits] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     inputRef.current?.focus();
   }, [title, error, busy]);
 
@@ -37,17 +37,25 @@ export function PinPad({
     }
   }
 
-  function press(value: string) {
-    if (value === "del") {
-      apply(digits.slice(0, -1));
-      inputRef.current?.focus();
-      return;
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (busy) return;
+      if (event.target === inputRef.current) return;
+      if (event.key >= "0" && event.key <= "9") {
+        event.preventDefault();
+        apply(digits + event.key);
+        return;
+      }
+      if (event.key === "Backspace") {
+        event.preventDefault();
+        apply(digits.slice(0, -1));
+        return;
+      }
+      if (event.key === "Escape") onCancel?.();
     }
-    apply(digits + value);
-    inputRef.current?.focus();
-  }
-
-  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, digits, onCancel]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-felt-deep/70 p-4 backdrop-blur-md sm:items-center">
@@ -77,6 +85,7 @@ export function PinPad({
             inputMode="numeric"
             pattern="[0-9]*"
             autoComplete="one-time-code"
+            autoFocus
             maxLength={4}
             value={digits}
             disabled={busy}
@@ -88,31 +97,12 @@ export function PinPad({
         </label>
 
         <p className="mt-3 text-center text-xs text-mute">
-          Type four digits, or use the pad
+          Enter four digits on the keypad
         </p>
 
         {error ? (
           <p className="mt-3 text-center text-sm text-clay">{error}</p>
         ) : null}
-
-        <div className="mt-5 grid grid-cols-3 gap-2">
-          {keys.map((key, i) =>
-            key === "" ? (
-              <span key={`pad-${i}`} />
-            ) : (
-              <button
-                key={`pad-${i}`}
-                type="button"
-                disabled={busy}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => press(key)}
-                className="h-14 rounded-2xl bg-ivory/8 font-display text-xl text-ivory active:bg-ivory/16 disabled:opacity-40"
-              >
-                {key === "del" ? "⌫" : key}
-              </button>
-            ),
-          )}
-        </div>
 
         {onCancel ? (
           <button

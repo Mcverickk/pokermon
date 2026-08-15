@@ -9,7 +9,7 @@ import {
   unlockGame,
 } from "@/app/actions";
 import type { GameDetail, RosterPlayer } from "@/lib/db/queries";
-import { chips, handleTotal, inr } from "@/lib/ledger";
+import { chips, formatNight, handleTotal, inr } from "@/lib/ledger";
 import { ChipStack } from "./PokerChip";
 import { PinPad } from "./PinPad";
 import { RefreshButton } from "./RefreshButton";
@@ -66,7 +66,9 @@ export function LiveTable({
           <p className="text-xs font-medium tracking-[0.18em] text-gold uppercase">
             Live table
           </p>
-          <h1 className="font-display text-4xl tracking-tight">Pokermon</h1>
+          <h1 className="font-display text-4xl tracking-tight">
+            {formatNight(game.playedOn)}
+          </h1>
           <p className="mt-1 text-sm text-mute">
             Handle <span className="tabular text-ivory">{inr(handle)}</span>
             {" · "}
