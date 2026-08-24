@@ -12,14 +12,33 @@ function iso(value: Date | string) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
-type CachedGame = Omit<GameDetail, "playedOn"> & { playedOn: string };
+type CachedSeat = Omit<GameSeat, "cashedOutAt"> & { cashedOutAt: string | null };
+
+type CachedGame = Omit<GameDetail, "playedOn" | "players"> & {
+  playedOn: string;
+  players: CachedSeat[];
+};
 
 function freezeGame(game: GameDetail): CachedGame {
-  return { ...game, playedOn: iso(game.playedOn) };
+  return {
+    ...game,
+    playedOn: iso(game.playedOn),
+    players: game.players.map((seat) => ({
+      ...seat,
+      cashedOutAt: seat.cashedOutAt ? iso(seat.cashedOutAt) : null,
+    })),
+  };
 }
 
 function reviveGame(game: CachedGame): GameDetail {
-  return { ...game, playedOn: new Date(game.playedOn) };
+  return {
+    ...game,
+    playedOn: new Date(game.playedOn),
+    players: game.players.map((seat) => ({
+      ...seat,
+      cashedOutAt: seat.cashedOutAt ? new Date(seat.cashedOutAt) : null,
+    })),
+  };
 }
 
 export type GameSeat = {
@@ -28,14 +47,18 @@ export type GameSeat = {
   buyIns: number;
   finalStack: number | null;
   moneyDiff: number | null;
+  cashedOutAt: Date | null;
 };
 
+export type TransferSource = "early_cashout" | "settle";
+
 export type GameTransfer = {
-  fromId: string;
+  fromId: string | null;
   fromName: string;
-  toId: string;
+  toId: string | null;
   toName: string;
   amount: number;
+  source: TransferSource;
 };
 
 export type GameDetail = {
@@ -124,6 +147,7 @@ async function assembleGame(id: string): Promise<GameDetail | null> {
       buyIns: gamePlayers.buyIns,
       finalStack: gamePlayers.finalStack,
       moneyDiff: gamePlayers.moneyDiff,
+      cashedOutAt: gamePlayers.cashedOutAt,
     })
     .from(gamePlayers)
     .innerJoin(players, eq(players.id, gamePlayers.playerId))
@@ -148,10 +172,11 @@ async function assembleGame(id: string): Promise<GameDetail | null> {
     players: seats,
     transfers: pays.map((row) => ({
       fromId: row.fromPlayerId,
-      fromName: names.get(row.fromPlayerId) ?? "Unknown",
+      fromName: row.fromPlayerId ? (names.get(row.fromPlayerId) ?? "Unknown") : "Cage",
       toId: row.toPlayerId,
-      toName: names.get(row.toPlayerId) ?? "Unknown",
+      toName: row.toPlayerId ? (names.get(row.toPlayerId) ?? "Unknown") : "Cage",
       amount: row.amount,
+      source: row.source,
     })),
   };
 }

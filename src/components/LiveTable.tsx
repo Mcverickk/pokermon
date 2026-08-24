@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   addPlayerToGame,
+  cashOutPlayer,
   changeBuyIns,
+  undoCashOut,
   unlockGame,
 } from "@/app/actions";
 import type { GameDetail, RosterPlayer } from "@/lib/db/queries";
-import { chips, formatNight, handleTotal, inr } from "@/lib/ledger";
+import { chips, formatNight, handleTotal, inr, moneyDiff } from "@/lib/ledger";
 import { ChipStack } from "./PokerChip";
 import { PinPad } from "./PinPad";
 import { RefreshButton } from "./RefreshButton";
@@ -31,6 +33,11 @@ export function LiveTable({
     from: number;
   } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [cashOut, setCashOut] = useState<{
+    playerId: string;
+    name: string;
+    buyIns: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -39,6 +46,8 @@ export function LiveTable({
     game.players.reduce((sum, p) => sum + p.buyIns, 0),
     game.buyInCash,
   );
+  const seated = game.players.filter((p) => !p.cashedOutAt);
+  const cashed = game.players.filter((p) => p.cashedOutAt);
 
   function bump(playerId: string, name: string, buyIns: number, delta: 1 | -1) {
     setError(null);
@@ -98,7 +107,7 @@ export function LiveTable({
       {error ? <p className="text-sm text-clay">{error}</p> : null}
 
       <ul className="flex flex-col gap-3 lg:grid lg:grid-cols-2">
-        {game.players.map((seat, i) => (
+        {seated.map((seat, i) => (
           <li
             key={seat.playerId}
             className="glass relative flex items-center gap-3 overflow-hidden rounded-3xl px-3 py-3"
@@ -114,6 +123,24 @@ export function LiveTable({
               <p className="text-xs text-mute">
                 {chips(seat.buyIns * game.stackValue)} chips
               </p>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  if (!unlocked) {
+                    setPinOpen(true);
+                    return;
+                  }
+                  setCashOut({
+                    playerId: seat.playerId,
+                    name: seat.name,
+                    buyIns: seat.buyIns,
+                  });
+                }}
+                className="mt-1 text-left text-[11px] font-medium tracking-wide text-gold"
+              >
+                Cash out
+              </button>
             </div>
             <div className="flex items-center gap-1.5">
               <button
@@ -143,6 +170,59 @@ export function LiveTable({
           </li>
         ))}
       </ul>
+
+      {cashed.length ? (
+        <section className="flex flex-col gap-2">
+          <p className="text-xs font-medium tracking-[0.18em] text-gold uppercase">
+            With the cage
+          </p>
+          <ul className="flex flex-col gap-2">
+            {cashed.map((seat) => {
+              const diff = seat.moneyDiff ?? 0;
+              return (
+                <li
+                  key={seat.playerId}
+                  className="glass flex items-center gap-3 rounded-3xl px-3 py-3 opacity-90"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display text-xl tracking-tight">
+                      {seat.name}
+                    </p>
+                    <p className="text-xs text-mute">
+                      {chips(seat.finalStack ?? 0)} chips ·{" "}
+                      {diff > 0
+                        ? `Cage paid ${inr(diff)}`
+                        : diff < 0
+                          ? `Paid the cage ${inr(-diff)}`
+                          : "Even"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      if (!unlocked) {
+                        setPinOpen(true);
+                        return;
+                      }
+                      start(async () => {
+                        const result = await undoCashOut(game.id, seat.playerId);
+                        if (!result.ok) {
+                          setError(result.error);
+                          if (result.needsPin) setPinOpen(true);
+                        }
+                      });
+                    }}
+                    className="btn-ghost h-10 px-3 text-xs font-medium"
+                  >
+                    Undo
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="flex flex-col gap-2 lg:flex-row lg:max-w-xl">
         <button
@@ -235,6 +315,98 @@ export function LiveTable({
           }}
         />
       ) : null}
+
+      {cashOut ? (
+        <CashOutSheet
+          name={cashOut.name}
+          buyIns={cashOut.buyIns}
+          stackValue={game.stackValue}
+          buyInCash={game.buyInCash}
+          pending={pending}
+          onClose={() => setCashOut(null)}
+          onConfirm={(finalStack) => {
+            const id = cashOut.playerId;
+            setCashOut(null);
+            start(async () => {
+              const result = await cashOutPlayer(game.id, id, finalStack);
+              if (!result.ok) {
+                setError(result.error);
+                if (result.needsPin) setPinOpen(true);
+              }
+            });
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function cageLine(name: string, diff: number) {
+  if (diff > 0) return `Cage pays ${name} ${inr(diff)}`;
+  if (diff < 0) return `${name} pays the cage ${inr(-diff)}`;
+  return "Even — no cash";
+}
+
+function CashOutSheet({
+  name,
+  buyIns,
+  stackValue,
+  buyInCash,
+  pending,
+  onConfirm,
+  onClose,
+}: {
+  name: string;
+  buyIns: number;
+  stackValue: number;
+  buyInCash: number;
+  pending: boolean;
+  onConfirm: (finalStack: number) => void;
+  onClose: () => void;
+}) {
+  const [stack, setStack] = useState("");
+  const filled = stack !== "" && Number(stack) >= 0;
+  const diff = filled
+    ? moneyDiff(Number(stack), buyIns, stackValue, buyInCash)
+    : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-felt-deep/70 p-4 backdrop-blur-md lg:items-center">
+      <div className="glass-strong w-full rounded-3xl p-5 lg:mx-auto lg:max-w-md">
+        <p className="font-display text-3xl tracking-tight">Cash out {name}</p>
+        <p className="mt-1 text-sm text-mute">
+          {buyIns} buy-in{buyIns === 1 ? "" : "s"} · issued{" "}
+          {chips(buyIns * stackValue)}
+        </p>
+        <label className="mt-4 block text-xs text-mute">Final chips</label>
+        <input
+          inputMode="numeric"
+          value={stack}
+          onChange={(e) => setStack(e.target.value.replace(/[^\d]/g, ""))}
+          placeholder="0"
+          className="mt-1 w-full rounded-2xl bg-ivory/8 px-4 py-3 text-ivory placeholder:text-mute"
+        />
+        <p className={`mt-3 text-sm ${filled ? "text-gold" : "text-mute"}`}>
+          {filled ? cageLine(name, diff) : "Count their tray, then settle with the cage."}
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-ghost h-12 text-sm font-medium"
+          >
+            Stay seated
+          </button>
+          <button
+            type="button"
+            disabled={pending || !filled}
+            onClick={() => onConfirm(Number(stack))}
+            className="btn-primary h-12 text-sm font-semibold disabled:opacity-40"
+          >
+            Cash out
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -38,8 +38,9 @@ export function CashoutForm({
     [game.players, stacks],
   );
 
+  const remaining = game.players.filter((p) => !p.cashedOutAt);
   const conservation = chipConservation(parsed, game.stackValue);
-  const allFilled = game.players.every(
+  const allFilled = remaining.every(
     (p) => stacks[p.playerId] !== "" && Number(stacks[p.playerId]) >= 0,
   );
 
@@ -52,7 +53,7 @@ export function CashoutForm({
     start(async () => {
       const result = await settleGame(
         game.id,
-        game.players.map((p) => ({
+        remaining.map((p) => ({
           playerId: p.playerId,
           finalStack: Number(stacks[p.playerId]),
         })),
@@ -96,20 +97,27 @@ export function CashoutForm({
               <p className="text-xs text-mute">
                 {seat.buyIns} buy-in{seat.buyIns === 1 ? "" : "s"} · issued{" "}
                 {chips(seat.buyIns * game.stackValue)}
+                {seat.cashedOutAt ? " · with the cage" : ""}
               </p>
             </div>
-            <input
-              inputMode="numeric"
-              value={stacks[seat.playerId]}
-              onChange={(e) =>
-                setStacks((cur) => ({
-                  ...cur,
-                  [seat.playerId]: e.target.value.replace(/[^\d]/g, ""),
-                }))
-              }
-              placeholder="0"
-              className="w-28 rounded-2xl bg-ivory/8 px-3 py-2 text-right font-display text-2xl tabular text-ivory outline-none"
-            />
+            {seat.cashedOutAt ? (
+              <p className="w-28 px-3 py-2 text-right font-display text-2xl tabular text-gold">
+                {chips(seat.finalStack ?? 0)}
+              </p>
+            ) : (
+              <input
+                inputMode="numeric"
+                value={stacks[seat.playerId]}
+                onChange={(e) =>
+                  setStacks((cur) => ({
+                    ...cur,
+                    [seat.playerId]: e.target.value.replace(/[^\d]/g, ""),
+                  }))
+                }
+                placeholder="0"
+                className="w-28 rounded-2xl bg-ivory/8 px-3 py-2 text-right font-display text-2xl tabular text-ivory outline-none"
+              />
+            )}
           </li>
         ))}
       </ul>
@@ -134,7 +142,11 @@ export function CashoutForm({
             </p>
           )
         ) : (
-          <p>Enter every stack. Missing chips usually mean a missed buy-in.</p>
+          <p>
+            {remaining.length
+              ? "Enter the stacks still on the table. Locked rows already left with the cage."
+              : "Everyone already cashed out with the cage. Settle to close the book."}
+          </p>
         )}
       </div>
 

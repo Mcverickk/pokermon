@@ -1,12 +1,15 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { revalidatePath, refresh, updateTag } from "next/cache";
 import { cookies } from "next/headers";
 import {
+  CAGE_ID,
   chipConservation,
   minTransfers,
+  moneyDiff,
   scoreSeats,
+  seatsWithCage,
 } from "@/lib/ledger";
 import { getDb } from "@/lib/db";
 import { gamePlayers, games, players, transfers } from "@/lib/db/schema";
@@ -244,6 +247,7 @@ export async function changeBuyIns(
       and(
         eq(gamePlayers.gameId, gameId),
         eq(gamePlayers.playerId, playerId),
+        isNull(gamePlayers.cashedOutAt),
         delta < 0
           ? sql`${gamePlayers.buyIns} >= ${-delta}`
           : sql`true`,
@@ -252,7 +256,7 @@ export async function changeBuyIns(
     .returning({ buyIns: gamePlayers.buyIns });
 
   if (!updated) {
-    return { ok: false, error: "Cannot take that buy-in off." };
+    return { ok: false, error: "Cannot change that buy-in — they may have cashed out." };
   }
   revalidateAll(gameId);
   updateTag(LIVE_GAME_TAG);
@@ -283,6 +287,108 @@ export async function addPlayerToGame(
   return { ok: true };
 }
 
+export async function cashOutPlayer(
+  gameId: string,
+  playerId: string,
+  finalStack: number,
+): Promise<ActionResult> {
+  const gate = await requireEdit(gameId);
+  if (gate) return gate;
+  if (!Number.isFinite(finalStack) || finalStack < 0) {
+    return { ok: false, error: "Chip count must be zero or more." };
+  }
+
+  const game = await getGame(gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  const seat = game.players.find((p) => p.playerId === playerId);
+  if (!seat) return { ok: false, error: "That player is not on this table." };
+  if (seat.cashedOutAt) {
+    return { ok: false, error: "They already cashed out." };
+  }
+
+  const diff = moneyDiff(
+    finalStack,
+    seat.buyIns,
+    game.stackValue,
+    game.buyInCash,
+  );
+  const db = getDb();
+  const [updated] = await db
+    .update(gamePlayers)
+    .set({
+      finalStack,
+      moneyDiff: diff,
+      cashedOutAt: new Date(),
+    })
+    .where(
+      and(
+        eq(gamePlayers.gameId, gameId),
+        eq(gamePlayers.playerId, playerId),
+        isNull(gamePlayers.cashedOutAt),
+      ),
+    )
+    .returning({ playerId: gamePlayers.playerId });
+  if (!updated) {
+    return { ok: false, error: "They already cashed out." };
+  }
+
+  if (diff !== 0) {
+    await db.insert(transfers).values({
+      gameId,
+      fromPlayerId: diff > 0 ? null : playerId,
+      toPlayerId: diff > 0 ? playerId : null,
+      amount: Math.abs(diff),
+      source: "early_cashout",
+    });
+  }
+
+  revalidateAll(gameId);
+  updateTag(LIVE_GAME_TAG);
+  return { ok: true };
+}
+
+export async function undoCashOut(
+  gameId: string,
+  playerId: string,
+): Promise<ActionResult> {
+  const gate = await requireEdit(gameId);
+  if (gate) return gate;
+
+  const db = getDb();
+  const [updated] = await db
+    .update(gamePlayers)
+    .set({
+      finalStack: null,
+      moneyDiff: null,
+      cashedOutAt: null,
+    })
+    .where(
+      and(
+        eq(gamePlayers.gameId, gameId),
+        eq(gamePlayers.playerId, playerId),
+        sql`${gamePlayers.cashedOutAt} is not null`,
+      ),
+    )
+    .returning({ playerId: gamePlayers.playerId });
+  if (!updated) {
+    return { ok: false, error: "That player is still seated." };
+  }
+
+  await db
+    .delete(transfers)
+    .where(
+      and(
+        eq(transfers.gameId, gameId),
+        eq(transfers.source, "early_cashout"),
+        or(eq(transfers.fromPlayerId, playerId), eq(transfers.toPlayerId, playerId)),
+      ),
+    );
+
+  revalidateAll(gameId);
+  updateTag(LIVE_GAME_TAG);
+  return { ok: true };
+}
+
 export async function settleGame(
   gameId: string,
   stacks: { playerId: string; finalStack: number }[],
@@ -294,20 +400,36 @@ export async function settleGame(
   if (!game) return { ok: false, error: "Game not found." };
 
   const stackMap = new Map(stacks.map((s) => [s.playerId, s.finalStack]));
-  for (const seat of game.players) {
+  const remaining = game.players.filter((seat) => !seat.cashedOutAt);
+  const early = game.players.filter((seat) => seat.cashedOutAt);
+
+  for (const seat of remaining) {
     const value = stackMap.get(seat.playerId);
     if (value === undefined || !Number.isFinite(value) || value < 0) {
       return { ok: false, error: `Missing chip count for ${seat.name}.` };
     }
   }
+  for (const seat of early) {
+    if (seat.finalStack == null) {
+      return { ok: false, error: `Missing chip count for ${seat.name}.` };
+    }
+  }
 
   const scored = scoreSeats(
-    game.players.map((seat) => ({
-      playerId: seat.playerId,
-      name: seat.name,
-      buyIns: seat.buyIns,
-      finalStack: stackMap.get(seat.playerId)!,
-    })),
+    [
+      ...remaining.map((seat) => ({
+        playerId: seat.playerId,
+        name: seat.name,
+        buyIns: seat.buyIns,
+        finalStack: stackMap.get(seat.playerId)!,
+      })),
+      ...early.map((seat) => ({
+        playerId: seat.playerId,
+        name: seat.name,
+        buyIns: seat.buyIns,
+        finalStack: seat.finalStack!,
+      })),
+    ],
     game.stackValue,
     game.buyInCash,
   );
@@ -320,10 +442,19 @@ export async function settleGame(
     };
   }
 
-  const pays = minTransfers(scored);
+  const remainingScored = scored.filter((seat) =>
+    remaining.some((r) => r.playerId === seat.playerId),
+  );
+  const earlyScored = scored.filter((seat) =>
+    early.some((e) => e.playerId === seat.playerId),
+  );
+  const pays =
+    remaining.length === 0
+      ? []
+      : minTransfers(seatsWithCage(remainingScored, earlyScored));
   const db = getDb();
 
-  for (const seat of scored) {
+  for (const seat of remainingScored) {
     await db
       .update(gamePlayers)
       .set({
@@ -342,9 +473,10 @@ export async function settleGame(
     await db.insert(transfers).values(
       pays.map((pay) => ({
         gameId,
-        fromPlayerId: pay.fromId,
-        toPlayerId: pay.toId,
+        fromPlayerId: pay.fromId === CAGE_ID ? null : pay.fromId,
+        toPlayerId: pay.toId === CAGE_ID ? null : pay.toId,
         amount: pay.amount,
+        source: "settle" as const,
       })),
     );
   }

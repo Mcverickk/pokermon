@@ -19,6 +19,9 @@ export type Transfer = {
   amount: number;
 };
 
+export const CAGE_ID = "__cage__";
+export const CAGE_NAME = "Cage";
+
 export function buyInStack(buyIns: number, stackValue: number): number {
   return buyIns * stackValue;
 }
@@ -124,6 +127,28 @@ export function minTransfers(seats: SeatResult[]): Transfer[] {
   }
 
   return transfers;
+}
+
+export function cageSeat(moneyDiff: number): SeatResult {
+  return {
+    playerId: CAGE_ID,
+    name: CAGE_NAME,
+    buyIns: 0,
+    finalStack: 0,
+    buyInStack: 0,
+    stackDiff: 0,
+    moneyDiff,
+  };
+}
+
+/** Remaining seats plus the cage when early cash-outs left a tray imbalance. */
+export function seatsWithCage(
+  remaining: SeatResult[],
+  early: SeatResult[],
+): SeatResult[] {
+  const cageMoney = early.reduce((sum, seat) => sum + seat.moneyDiff, 0);
+  if (cageMoney === 0) return remaining;
+  return [...remaining, cageSeat(cageMoney)];
 }
 
 export function formatReceipt(args: {

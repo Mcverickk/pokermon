@@ -1,4 +1,5 @@
 import {
+  check,
   integer,
   pgTable,
   text,
@@ -52,22 +53,32 @@ export const gamePlayers = pgTable(
     buyIns: integer("buy_ins").notNull().default(1),
     finalStack: integer("final_stack"),
     moneyDiff: integer("money_diff"),
+    cashedOutAt: timestamp("cashed_out_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("game_players_game_player").on(table.gameId, table.playerId),
   ],
 );
 
-export const transfers = pgTable("transfers", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  gameId: uuid("game_id")
-    .notNull()
-    .references(() => games.id, { onDelete: "cascade" }),
-  fromPlayerId: uuid("from_player_id")
-    .notNull()
-    .references(() => players.id),
-  toPlayerId: uuid("to_player_id")
-    .notNull()
-    .references(() => players.id),
-  amount: integer("amount").notNull(),
-});
+export const transfers = pgTable(
+  "transfers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    gameId: uuid("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    fromPlayerId: uuid("from_player_id").references(() => players.id),
+    toPlayerId: uuid("to_player_id").references(() => players.id),
+    amount: integer("amount").notNull(),
+    source: text("source")
+      .$type<"early_cashout" | "settle">()
+      .notNull()
+      .default("settle"),
+  },
+  (table) => [
+    check(
+      "transfers_has_endpoint",
+      sql`${table.fromPlayerId} is not null or ${table.toPlayerId} is not null`,
+    ),
+  ],
+);

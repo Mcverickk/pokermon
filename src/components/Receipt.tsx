@@ -14,6 +14,11 @@ export function Receipt({ game }: { game: GameDetail }) {
     game.buyInCash,
   );
   const ranked = [...seats].sort((a, b) => b.moneyDiff - a.moneyDiff);
+  const cashedIds = new Set(
+    game.players.filter((p) => p.cashedOutAt).map((p) => p.playerId),
+  );
+  const earlyPays = game.transfers.filter((t) => t.source === "early_cashout");
+  const tablePays = game.transfers.filter((t) => t.source !== "early_cashout");
   const handle = handleTotal(
     game.players.reduce((sum, p) => sum + p.buyIns, 0),
     game.buyInCash,
@@ -58,7 +63,14 @@ export function Receipt({ game }: { game: GameDetail }) {
                 key={seat.playerId}
                 className="flex justify-between py-0.5 font-display text-base tabular"
               >
-                <span>{seat.name}</span>
+                <span>
+                  {seat.name}
+                  {cashedIds.has(seat.playerId) ? (
+                    <span className="ml-1 text-[10px] font-medium tracking-wide uppercase" style={{ color: "#8fa396" }}>
+                      cashed out
+                    </span>
+                  ) : null}
+                </span>
                 <span>
                   {seat.moneyDiff > 0 ? "+" : seat.moneyDiff < 0 ? "−" : ""}
                   {inr(Math.abs(seat.moneyDiff))}
@@ -66,17 +78,40 @@ export function Receipt({ game }: { game: GameDetail }) {
               </li>
             ))}
           </ul>
+          {earlyPays.length ? (
+            <>
+              <p
+                className="mt-3 text-xs font-medium tracking-[0.18em] uppercase"
+                style={{ color: "#8fa396" }}
+              >
+                Already with the cage
+              </p>
+              <ul className="mt-1">
+                {earlyPays.map((t) => (
+                  <li
+                    key={`early-${t.fromId}-${t.toId}-${t.amount}`}
+                    className="flex justify-between text-sm tabular"
+                  >
+                    <span>
+                      {t.fromName} → {t.toName}
+                    </span>
+                    <span>{inr(t.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
           <p
             className="mt-3 text-xs font-medium tracking-[0.18em] uppercase"
             style={{ color: "#8fa396" }}
           >
             Pay
           </p>
-          {game.transfers.length ? (
+          {tablePays.length ? (
             <ul className="mt-1">
-              {game.transfers.map((t) => (
+              {tablePays.map((t) => (
                 <li
-                  key={`${t.fromId}-${t.toId}-${t.amount}`}
+                  key={`settle-${t.fromId}-${t.toId}-${t.amount}`}
                   className="flex justify-between text-sm tabular"
                 >
                   <span>
@@ -87,7 +122,11 @@ export function Receipt({ game }: { game: GameDetail }) {
               ))}
             </ul>
           ) : (
-            <p className="mt-1 text-sm">No payments — even table.</p>
+            <p className="mt-1 text-sm">
+              {earlyPays.length
+                ? "No leftover payments — the cage is square."
+                : "No payments — even table."}
+            </p>
           )}
         </div>
       </article>

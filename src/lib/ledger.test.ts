@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  CAGE_ID,
   chipConservation,
   handleTotal,
   minTransfers,
   moneyDiff,
   scoreSeats,
+  seatsWithCage,
 } from "./ledger";
 
 /** Bachatt Poker sheet — 11-08-2026, ₹500 buy-in / 5,000 stack. */
@@ -21,6 +23,16 @@ const night = [
   { playerId: "jai", name: "Jai", buyIns: 1, finalStack: 5000 },
   { playerId: "chinmay", name: "Chinmay", buyIns: 2, finalStack: 15000 },
 ];
+
+function nets(transfers: { fromId: string; toId: string; amount: number }[]) {
+  const paid = new Map<string, number>();
+  const received = new Map<string, number>();
+  for (const t of transfers) {
+    paid.set(t.fromId, (paid.get(t.fromId) ?? 0) + t.amount);
+    received.set(t.toId, (received.get(t.toId) ?? 0) + t.amount);
+  }
+  return { paid, received };
+}
 
 describe("sheet math 11-08-2026", () => {
   it("matches Money Diff column", () => {
@@ -45,16 +57,46 @@ describe("sheet math 11-08-2026", () => {
   it("settles with the fewest UPI transfers", () => {
     const seats = scoreSeats(night, STACK, CASH);
     const transfers = minTransfers(seats);
-    const paid = new Map<string, number>();
-    const received = new Map<string, number>();
-    for (const t of transfers) {
-      paid.set(t.fromId, (paid.get(t.fromId) ?? 0) + t.amount);
-      received.set(t.toId, (received.get(t.toId) ?? 0) + t.amount);
-    }
+    const { paid, received } = nets(transfers);
     for (const seat of seats) {
       const net = (received.get(seat.playerId) ?? 0) - (paid.get(seat.playerId) ?? 0);
       expect(net).toBe(seat.moneyDiff);
     }
-    expect(transfers.length).toBeLessThanOrEqual(seats.filter((s) => s.moneyDiff !== 0).length - 1);
+    expect(transfers.length).toBeLessThanOrEqual(
+      seats.filter((s) => s.moneyDiff !== 0).length - 1,
+    );
+  });
+});
+
+describe("early cash-out with the cage", () => {
+  it("leaves min-transfers unchanged when nobody walked", () => {
+    const seats = scoreSeats(night, STACK, CASH);
+    expect(seatsWithCage(seats, [])).toEqual(seats);
+    expect(minTransfers(seatsWithCage(seats, []))).toEqual(minTransfers(seats));
+  });
+
+  it("settles remaining players plus the cage after an early winner", () => {
+    const seats = scoreSeats(night, STACK, CASH);
+    const early = seats.filter((s) => s.playerId === "murli");
+    const remaining = seats.filter((s) => s.playerId !== "murli");
+    expect(early[0].moneyDiff).toBe(1105);
+    expect(remaining.reduce((sum, s) => sum + s.moneyDiff, 0)).toBe(-1105);
+
+    const mixed = seatsWithCage(remaining, early);
+    expect(mixed.find((s) => s.playerId === CAGE_ID)?.moneyDiff).toBe(1105);
+
+    const transfers = minTransfers(mixed);
+    expect(transfers.some((t) => t.fromId === CAGE_ID || t.toId === CAGE_ID)).toBe(
+      true,
+    );
+
+    const { paid, received } = nets(transfers);
+    for (const seat of mixed) {
+      const net = (received.get(seat.playerId) ?? 0) - (paid.get(seat.playerId) ?? 0);
+      expect(net).toBe(seat.moneyDiff);
+    }
+    expect(
+      mixed.reduce((sum, s) => sum + s.moneyDiff, 0),
+    ).toBe(0);
   });
 });
