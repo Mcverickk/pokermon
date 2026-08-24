@@ -23,7 +23,7 @@ export default async function HistoryPage() {
           </p>
           <h1 className="font-display text-4xl tracking-tight">Nights</h1>
           <p className="mt-1 text-sm text-mute">
-            Open a night for the receipt.
+            Last three nights. Open one for the receipt.
           </p>
         </div>
         <RefreshButton className="mt-1" scope="board" />

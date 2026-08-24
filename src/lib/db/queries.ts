@@ -202,7 +202,8 @@ const cachedSettledGames = unstable_cache(
       .leftJoin(gamePlayers, eq(gamePlayers.gameId, games.id))
       .where(eq(games.status, "settled"))
       .groupBy(games.id)
-      .orderBy(desc(games.playedOn));
+      .orderBy(desc(games.playedOn))
+      .limit(3);
 
     return rows.map((row) => ({
       id: row.id,
