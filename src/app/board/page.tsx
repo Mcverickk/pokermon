@@ -2,7 +2,6 @@ import { PokerChip } from "@/components/PokerChip";
 import { RefreshButton } from "@/components/RefreshButton";
 import { isDbConfigured } from "@/lib/db";
 import { getLeaderboard } from "@/lib/db/queries";
-import { inr } from "@/lib/ledger";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +46,6 @@ export default async function BoardPage() {
                 <span className="min-w-0 flex-1 font-display text-lg tracking-tight">
                   {row.name}
                 </span>
-                {row.net > 0 ? (
-                  <span className="text-base tabular text-gold">
-                    +{inr(row.net)}
-                  </span>
-                ) : null}
               </div>
             </li>
           ))}
