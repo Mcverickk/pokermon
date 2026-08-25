@@ -1,5 +1,6 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
+import { currentMonthKey, monthBoundsUtc } from "@/lib/ledger";
 import { getDb } from "./index";
 import { gamePlayers, games, players, transfers } from "./schema";
 
@@ -247,8 +248,9 @@ export type PlayerNight = {
 };
 
 export const getLeaderboard = unstable_cache(
-  async (): Promise<LeaderboardRow[]> => {
+  async (monthKey: string): Promise<LeaderboardRow[]> => {
     const db = getDb();
+    const { start, end } = monthBoundsUtc(monthKey);
     const rows = await db
       .select({
         playerId: players.id,
@@ -264,7 +266,13 @@ export const getLeaderboard = unstable_cache(
       .from(gamePlayers)
       .innerJoin(games, eq(games.id, gamePlayers.gameId))
       .innerJoin(players, eq(players.id, gamePlayers.playerId))
-      .where(eq(games.status, "settled"))
+      .where(
+        and(
+          eq(games.status, "settled"),
+          gte(games.playedOn, start),
+          lt(games.playedOn, end),
+        ),
+      )
       .groupBy(players.id, players.name)
       .orderBy(sql`sum(${gamePlayers.moneyDiff}) desc`);
 
@@ -285,8 +293,9 @@ export const getLeaderboard = unstable_cache(
 );
 
 const cachedPlayerNights = unstable_cache(
-  async (playerId: string) => {
+  async (playerId: string, monthKey?: string) => {
     const db = getDb();
+    const monthBounds = monthKey ? monthBoundsUtc(monthKey) : null;
     const rows = await db
       .select({
         gameId: games.id,
@@ -297,7 +306,16 @@ const cachedPlayerNights = unstable_cache(
       .from(gamePlayers)
       .innerJoin(games, eq(games.id, gamePlayers.gameId))
       .where(
-        and(eq(gamePlayers.playerId, playerId), eq(games.status, "settled")),
+        and(
+          eq(gamePlayers.playerId, playerId),
+          eq(games.status, "settled"),
+          monthBounds
+            ? and(
+                gte(games.playedOn, monthBounds.start),
+                lt(games.playedOn, monthBounds.end),
+              )
+            : undefined,
+        ),
       )
       .orderBy(desc(games.playedOn));
 
@@ -317,8 +335,9 @@ const cachedPlayerNights = unstable_cache(
 
 export async function getPlayerNights(
   playerId: string,
+  monthKey?: string,
 ): Promise<PlayerNight[]> {
-  const rows = await cachedPlayerNights(playerId);
+  const rows = await cachedPlayerNights(playerId, monthKey);
   return rows.map((row) => ({
     ...row,
     playedOn: new Date(row.playedOn),
@@ -329,11 +348,12 @@ export async function warmBoardCache(
   playerIds: string[],
   gameId?: string,
 ): Promise<void> {
+  const monthKey = currentMonthKey();
   await Promise.all([
-    getLeaderboard(),
+    getLeaderboard(monthKey),
     listSettledGames(),
     gameId ? getSettledGame(gameId) : Promise.resolve(null),
-    ...playerIds.map((id) => getPlayerNights(id)),
+    ...playerIds.map((id) => getPlayerNights(id, monthKey)),
   ]);
 }
 

@@ -198,9 +198,105 @@ export function chips(n: number): string {
   return new Intl.NumberFormat("en-IN").format(n);
 }
 
+export const HOUSE_TZ = "Asia/Kolkata";
+
+function istDateParts(date: Date): { year: number; month: number } {
+  const parts = new Intl.DateTimeFormat("en-IN", {
+    timeZone: HOUSE_TZ,
+    year: "numeric",
+    month: "numeric",
+  }).formatToParts(date);
+  return {
+    year: Number(parts.find((part) => part.type === "year")!.value),
+    month: Number(parts.find((part) => part.type === "month")!.value),
+  };
+}
+
+export function currentMonthKey(): string {
+  return monthKeyFromDate(new Date());
+}
+
+export function monthKeyFromDate(date: Date): string {
+  const { year, month } = istDateParts(date);
+  return toMonthKey(year, month);
+}
+
+export function parseMonthKey(
+  key: string,
+): { year: number; month: number } | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  return { year, month };
+}
+
+export function resolveMonthKey(param?: string | null): string {
+  if (param && parseMonthKey(param)) return param;
+  return currentMonthKey();
+}
+
+export function formatMonthLabel(key: string): string {
+  const parsed = parseMonthKey(key);
+  if (!parsed) return key;
+  const date = istMidnightToUtc(parsed.year, parsed.month, 15);
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: HOUSE_TZ,
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+export function shiftMonthKey(key: string, delta: -1 | 1): string {
+  const parsed = parseMonthKey(key);
+  if (!parsed) return key;
+  let { year, month } = parsed;
+  month += delta;
+  if (month < 1) {
+    month = 12;
+    year -= 1;
+  } else if (month > 12) {
+    month = 1;
+    year += 1;
+  }
+  return toMonthKey(year, month);
+}
+
+export function compareMonthKeys(a: string, b: string): number {
+  const left = parseMonthKey(a);
+  const right = parseMonthKey(b);
+  if (!left || !right) return 0;
+  if (left.year !== right.year) return left.year - right.year;
+  return left.month - right.month;
+}
+
+function toMonthKey(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function istMidnightToUtc(year: number, month: number, day: number): Date {
+  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00+05:30`;
+  return new Date(iso);
+}
+
+export function monthBoundsUtc(key: string): { start: Date; end: Date } {
+  const parsed = parseMonthKey(key);
+  if (!parsed) throw new Error(`Invalid month key: ${key}`);
+
+  const start = istMidnightToUtc(parsed.year, parsed.month, 1);
+  const next =
+    parsed.month === 12
+      ? { year: parsed.year + 1, month: 1 }
+      : { year: parsed.year, month: parsed.month + 1 };
+  const end = istMidnightToUtc(next.year, next.month, 1);
+
+  return { start, end };
+}
+
 export function formatNight(date: Date): string {
   return new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
+    timeZone: HOUSE_TZ,
     weekday: "short",
     day: "2-digit",
     month: "short",

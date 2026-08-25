@@ -39,6 +39,6 @@ Open [http://localhost:3000](http://localhost:3000).
 - Refresh button (no live polling)
 - Cash out with a chip-conservation check
 - Settlement receipt: net P/L + fewest UPI transfers, copy / WhatsApp
-- History of settled nights and a lifetime leaderboard
+- History of settled nights and a monthly leaderboard
 
 Math matches the Bachatt sheet: `Money Diff = (Final − Buyins × Stack) × (Buy-in ₹ / Stack)`.
