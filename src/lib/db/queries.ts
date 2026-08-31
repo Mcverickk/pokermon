@@ -96,6 +96,27 @@ export const listRoster = unstable_cache(
   { tags: [ROSTER_CACHE_TAG], revalidate: false },
 );
 
+export type PlayerUpiRow = {
+  id: string;
+  name: string;
+  username: string | null;
+  upiId: string | null;
+};
+
+export async function listPlayerUpis(): Promise<PlayerUpiRow[]> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: players.id,
+      name: players.name,
+      username: players.username,
+      upiId: players.upiId,
+    })
+    .from(players)
+    .orderBy(players.name);
+  return rows;
+}
+
 const cachedLiveGame = unstable_cache(
   async (): Promise<CachedGame | null> => {
     const db = getDb();

@@ -6,6 +6,7 @@ import { players } from "@/lib/db/schema";
 
 const COOKIE = "pokermon_user";
 const TTL_MS = 12 * 60 * 60 * 1000;
+export const ADMIN_USERNAME = "chirag";
 
 type Payload = { playerId: string; exp: number };
 
@@ -14,6 +15,7 @@ export type LoggedInPlayer = {
   name: string;
   username: string;
   upiId: string | null;
+  isAdmin: boolean;
 };
 
 function secret(): string {
@@ -88,7 +90,14 @@ export async function getLoggedInPlayer(): Promise<LoggedInPlayer | null> {
     name: row.name,
     username: row.username,
     upiId: row.upiId,
+    isAdmin: row.username === ADMIN_USERNAME,
   };
+}
+
+export function isAdminPlayer(
+  player: { username: string } | null,
+): boolean {
+  return player?.username === ADMIN_USERNAME;
 }
 
 export function firstName(name: string): string {

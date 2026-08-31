@@ -25,6 +25,7 @@ import {
 } from "@/lib/db/queries";
 import {
   getLoggedInPlayer,
+  isAdminPlayer,
   mintUserSession,
   userCookieName,
   userCookieOptions,
@@ -594,6 +595,61 @@ export async function saveUpi(upiId: string): Promise<ActionResult> {
     .update(players)
     .set({ upiId: normalized })
     .where(eq(players.id, player.id));
+
+  updateTag(ROSTER_CACHE_TAG);
+  updateTag(SETTLED_GAME_TAG);
+  updateTag(LIVE_GAME_TAG);
+  revalidatePath("/", "layout");
+  revalidatePath("/me");
+  revalidatePath("/history");
+  revalidatePath("/game", "layout");
+  return { ok: true };
+}
+
+export async function savePlayerUpis(
+  rows: { playerId: string; upiId: string }[],
+): Promise<ActionResult> {
+  const actor = await getLoggedInPlayer();
+  if (!isAdminPlayer(actor)) {
+    return { ok: false, error: "Only the house can write everyone’s UPI." };
+  }
+  if (!rows.length) {
+    return { ok: false, error: "Nothing to write." };
+  }
+
+  const db = getDb();
+  const roster = await db
+    .select({ id: players.id, name: players.name })
+    .from(players);
+  const names = new Map(roster.map((person) => [person.id, person.name]));
+
+  const updates: { id: string; upiId: string | null }[] = [];
+  for (const row of rows) {
+    const name = names.get(row.playerId);
+    if (!name) {
+      return { ok: false, error: "That player is not on the roster." };
+    }
+    const trimmed = row.upiId.trim();
+    if (!trimmed) {
+      updates.push({ id: row.playerId, upiId: null });
+      continue;
+    }
+    const normalized = normalizeUpiId(trimmed);
+    if (!isUpiId(normalized)) {
+      return {
+        ok: false,
+        error: `${name}: that doesn’t look like a UPI ID.`,
+      };
+    }
+    updates.push({ id: row.playerId, upiId: normalized });
+  }
+
+  for (const row of updates) {
+    await db
+      .update(players)
+      .set({ upiId: row.upiId })
+      .where(eq(players.id, row.id));
+  }
 
   updateTag(ROSTER_CACHE_TAG);
   updateTag(SETTLED_GAME_TAG);
