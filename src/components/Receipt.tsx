@@ -1,16 +1,9 @@
-import Link from "next/link";
 import type { GameDetail, GameTransfer } from "@/lib/db/queries";
 import { formatNight, handleTotal, inr, scoreSeats } from "@/lib/ledger";
 import { upiPayUrl } from "@/lib/upi";
 import { RefreshButton } from "./RefreshButton";
 
-export function Receipt({
-  game,
-  currentPlayerId,
-}: {
-  game: GameDetail;
-  currentPlayerId: string | null;
-}) {
+export function Receipt({ game }: { game: GameDetail }) {
   const seats = scoreSeats(
     game.players.map((p) => ({
       playerId: p.playerId,
@@ -119,12 +112,7 @@ export function Receipt({
           {tablePays.length ? (
             <ul className="mt-1">
               {tablePays.map((t) => (
-                <SettlePayRow
-                  key={t.id}
-                  transfer={t}
-                  currentPlayerId={currentPlayerId}
-                  night={night}
-                />
+                <SettlePayRow key={t.id} transfer={t} night={night} />
               ))}
             </ul>
           ) : (
@@ -134,13 +122,6 @@ export function Receipt({
                 : "No payments — even table."}
             </p>
           )}
-          {!currentPlayerId && tablePays.length ? (
-            <p className="mt-2 text-xs" style={{ color: "#8fa396" }}>
-              <Link href="/login" style={{ color: "#8a5a12" }}>
-                Log in to pay from this phone
-              </Link>
-            </p>
-          ) : null}
         </div>
       </article>
     </div>
@@ -149,16 +130,11 @@ export function Receipt({
 
 function SettlePayRow({
   transfer,
-  currentPlayerId,
   night,
 }: {
   transfer: GameTransfer;
-  currentPlayerId: string | null;
   night: string;
 }) {
-  const owes =
-    Boolean(currentPlayerId) && transfer.fromId === currentPlayerId;
-
   return (
     <li className="py-0.5 text-sm">
       <div className="flex justify-between tabular">
@@ -167,31 +143,29 @@ function SettlePayRow({
         </span>
         <span>{inr(transfer.amount)}</span>
       </div>
-      {owes ? (
-        transfer.toUpiId ? (
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <span className="min-w-0 truncate text-[11px]" style={{ color: "#8fa396" }}>
-              {transfer.toUpiId}
-            </span>
-            <a
-              href={upiPayUrl({
-                pa: transfer.toUpiId,
-                pn: transfer.toName,
-                am: transfer.amount,
-                tn: `Pokermon ${night}`,
-              })}
-              className="shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide"
-              style={{ background: "#c43b3b", color: "#f4eee4" }}
-            >
-              Pay
-            </a>
-          </div>
-        ) : (
-          <p className="mt-0.5 text-[11px]" style={{ color: "#8fa396" }}>
-            Waiting on their UPI
-          </p>
-        )
-      ) : null}
+      {transfer.toUpiId ? (
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-[11px]" style={{ color: "#8fa396" }}>
+            {transfer.toUpiId}
+          </span>
+          <a
+            href={upiPayUrl({
+              pa: transfer.toUpiId,
+              pn: transfer.toName,
+              am: transfer.amount,
+              tn: `Pokermon ${night}`,
+            })}
+            className="shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide"
+            style={{ background: "#c43b3b", color: "#f4eee4" }}
+          >
+            Pay
+          </a>
+        </div>
+      ) : (
+        <p className="mt-0.5 text-[11px]" style={{ color: "#8fa396" }}>
+          Waiting on their UPI
+        </p>
+      )}
     </li>
   );
 }

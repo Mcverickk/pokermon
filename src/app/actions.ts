@@ -24,6 +24,7 @@ import {
   warmBoardCache,
 } from "@/lib/db/queries";
 import {
+  ADMIN_USERNAME,
   getLoggedInPlayer,
   isAdminPlayer,
   mintUserSession,
@@ -536,9 +537,9 @@ export async function settleGame(
 export async function login(
   username: string,
   password: string,
-): Promise<ActionResult<{ hasUpi: boolean }>> {
+): Promise<ActionResult> {
   const handle = username.trim().toLowerCase();
-  if (!handle || !isUsablePassword(password)) {
+  if (handle !== ADMIN_USERNAME || !isUsablePassword(password)) {
     return { ok: false, error: "Wrong username or password." };
   }
 
@@ -547,7 +548,6 @@ export async function login(
     .select({
       id: players.id,
       passwordHash: players.passwordHash,
-      upiId: players.upiId,
     })
     .from(players)
     .where(eq(players.username, handle))
@@ -568,7 +568,7 @@ export async function login(
     userCookieOptions,
   );
   revalidatePath("/", "layout");
-  return { ok: true, hasUpi: Boolean(person.upiId) };
+  return { ok: true };
 }
 
 export async function logout(): Promise<ActionResult> {
@@ -577,32 +577,6 @@ export async function logout(): Promise<ActionResult> {
     maxAge: 0,
   });
   revalidatePath("/", "layout");
-  return { ok: true };
-}
-
-export async function saveUpi(upiId: string): Promise<ActionResult> {
-  const player = await getLoggedInPlayer();
-  if (!player) {
-    return { ok: false, error: "Log in to save a UPI ID." };
-  }
-  const normalized = normalizeUpiId(upiId);
-  if (!isUpiId(normalized)) {
-    return { ok: false, error: "That doesn’t look like a UPI ID." };
-  }
-
-  const db = getDb();
-  await db
-    .update(players)
-    .set({ upiId: normalized })
-    .where(eq(players.id, player.id));
-
-  updateTag(ROSTER_CACHE_TAG);
-  updateTag(SETTLED_GAME_TAG);
-  updateTag(LIVE_GAME_TAG);
-  revalidatePath("/", "layout");
-  revalidatePath("/me");
-  revalidatePath("/history");
-  revalidatePath("/game", "layout");
   return { ok: true };
 }
 

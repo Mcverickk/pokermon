@@ -1,5 +1,4 @@
 import { Receipt } from "@/components/Receipt";
-import { getLoggedInPlayer } from "@/lib/auth";
 import { getGame } from "@/lib/db/queries";
 import { notFound, redirect } from "next/navigation";
 
@@ -14,6 +13,5 @@ export default async function SettlePage({
   const game = await getGame(id);
   if (!game) notFound();
   if (game.status !== "settled") redirect(`/game/${id}/cashout`);
-  const player = await getLoggedInPlayer();
-  return <Receipt game={game} currentPlayerId={player?.id ?? null} />;
+  return <Receipt game={game} />;
 }

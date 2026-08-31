@@ -15,10 +15,10 @@ export default async function LoginPage() {
           House seat
         </p>
         <h1 className="font-display text-4xl tracking-tight">
-          Name they know you by
+          House login
         </h1>
         <p className="mt-2 text-sm text-mute">
-          Optional. Log in to save a UPI ID and pay from a receipt on this phone.
+          Only Chirag can log in. Write VPAs here so Pay works on receipts.
         </p>
       </header>
       <LoginForm />

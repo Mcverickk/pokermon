@@ -21,7 +21,7 @@ export function LoginForm() {
         setError(result.error);
         return;
       }
-      router.push(result.hasUpi ? "/" : "/me");
+      router.push("/me");
       router.refresh();
     });
   }

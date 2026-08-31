@@ -3,10 +3,10 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getDb, isDbConfigured } from "@/lib/db";
 import { players } from "@/lib/db/schema";
+import { ADMIN_USERNAME } from "@/lib/admin";
 
 const COOKIE = "pokermon_user";
 const TTL_MS = 12 * 60 * 60 * 1000;
-export const ADMIN_USERNAME = "chirag";
 
 type Payload = { playerId: string; exp: number };
 
@@ -84,15 +84,17 @@ export async function getLoggedInPlayer(): Promise<LoggedInPlayer | null> {
     .from(players)
     .where(eq(players.id, session.playerId))
     .limit(1);
-  if (!row?.username) return null;
+  if (!row?.username || row.username !== ADMIN_USERNAME) return null;
   return {
     id: row.id,
     name: row.name,
     username: row.username,
     upiId: row.upiId,
-    isAdmin: row.username === ADMIN_USERNAME,
+    isAdmin: true,
   };
 }
+
+export { ADMIN_USERNAME } from "@/lib/admin";
 
 export function isAdminPlayer(
   player: { username: string } | null,
