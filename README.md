@@ -38,7 +38,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - Live table: `+` / `−` buy-ins (PIN to edit; `−` confirms)
 - Refresh button (no live polling)
 - Cash out with a chip-conservation check
-- Settlement receipt: net P/L + fewest UPI transfers; Pay opens a UPI app when the payee has a VPA
+- Settlement receipt: net P/L + fewest UPI transfers; Pay opens PhonePe / GPay / Paytm / CRED / super.money (iOS-friendly app schemes)
 - Chirag logs in to write everyone’s UPI ID
 - History of settled nights and a monthly leaderboard
 

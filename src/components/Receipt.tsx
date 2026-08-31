@@ -1,6 +1,6 @@
+import Link from "next/link";
 import type { GameDetail, GameTransfer } from "@/lib/db/queries";
 import { formatNight, handleTotal, inr, scoreSeats } from "@/lib/ledger";
-import { upiPayUrl } from "@/lib/upi";
 import { RefreshButton } from "./RefreshButton";
 
 export function Receipt({ game }: { game: GameDetail }) {
@@ -112,7 +112,11 @@ export function Receipt({ game }: { game: GameDetail }) {
           {tablePays.length ? (
             <ul className="mt-1">
               {tablePays.map((t) => (
-                <SettlePayRow key={t.id} transfer={t} night={night} />
+                <SettlePayRow
+                  key={t.id}
+                  gameId={game.id}
+                  transfer={t}
+                />
               ))}
             </ul>
           ) : (
@@ -129,11 +133,11 @@ export function Receipt({ game }: { game: GameDetail }) {
 }
 
 function SettlePayRow({
+  gameId,
   transfer,
-  night,
 }: {
+  gameId: string;
   transfer: GameTransfer;
-  night: string;
 }) {
   return (
     <li className="py-0.5 text-sm">
@@ -148,18 +152,13 @@ function SettlePayRow({
           <span className="min-w-0 truncate text-[11px]" style={{ color: "#8fa396" }}>
             {transfer.toUpiId}
           </span>
-          <a
-            href={upiPayUrl({
-              pa: transfer.toUpiId,
-              pn: transfer.toName,
-              am: transfer.amount,
-              tn: `Pokermon ${night}`,
-            })}
+          <Link
+            href={`/game/${gameId}/pay/${transfer.id}`}
             className="shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide"
             style={{ background: "#c43b3b", color: "#f4eee4" }}
           >
             Pay
-          </a>
+          </Link>
         </div>
       ) : (
         <p className="mt-0.5 text-[11px]" style={{ color: "#8fa396" }}>
