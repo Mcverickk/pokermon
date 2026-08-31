@@ -1,15 +1,16 @@
 "use server";
 
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath, refresh, updateTag } from "next/cache";
 import { cookies } from "next/headers";
 import {
-  CAGE_ID,
+  applyEarlyTransfers,
   chipConservation,
   minTransfers,
   moneyDiff,
+  ownEarlyTransfer,
+  remainingObligation,
   scoreSeats,
-  seatsWithCage,
 } from "@/lib/ledger";
 import { getDb } from "@/lib/db";
 import { gamePlayers, games, players, transfers } from "@/lib/db/schema";
@@ -291,6 +292,7 @@ export async function cashOutPlayer(
   gameId: string,
   playerId: string,
   finalStack: number,
+  counterpartyId?: string | null,
 ): Promise<ActionResult> {
   const gate = await requireEdit(gameId);
   if (gate) return gate;
@@ -312,6 +314,21 @@ export async function cashOutPlayer(
     game.stackValue,
     game.buyInCash,
   );
+  const owed = remainingObligation(
+    diff,
+    game.transfers.filter((t) => t.source === "early_cashout"),
+    playerId,
+  );
+  if (owed !== 0) {
+    if (!counterpartyId || counterpartyId === playerId) {
+      return { ok: false, error: "Pick who they settled with." };
+    }
+    const other = game.players.find((p) => p.playerId === counterpartyId);
+    if (!other) {
+      return { ok: false, error: "That player is not on this table." };
+    }
+  }
+
   const db = getDb();
   const [updated] = await db
     .update(gamePlayers)
@@ -332,12 +349,12 @@ export async function cashOutPlayer(
     return { ok: false, error: "They already cashed out." };
   }
 
-  if (diff !== 0) {
+  if (owed !== 0 && counterpartyId) {
     await db.insert(transfers).values({
       gameId,
-      fromPlayerId: diff > 0 ? null : playerId,
-      toPlayerId: diff > 0 ? playerId : null,
-      amount: Math.abs(diff),
+      fromPlayerId: owed < 0 ? playerId : counterpartyId,
+      toPlayerId: owed < 0 ? counterpartyId : playerId,
+      amount: Math.abs(owed),
       source: "early_cashout",
     });
   }
@@ -353,6 +370,28 @@ export async function undoCashOut(
 ): Promise<ActionResult> {
   const gate = await requireEdit(gameId);
   if (gate) return gate;
+
+  const game = await getGame(gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  const seat = game.players.find((p) => p.playerId === playerId);
+  if (!seat?.cashedOutAt) {
+    return { ok: false, error: "That player is still seated." };
+  }
+
+  const latest = game.players
+    .filter((p) => p.cashedOutAt)
+    .reduce((best, p) =>
+      p.cashedOutAt!.getTime() > best.cashedOutAt!.getTime() ? p : best,
+    );
+  if (latest.playerId !== playerId) {
+    return { ok: false, error: "Undo the later cash-outs first." };
+  }
+
+  const own = ownEarlyTransfer(
+    playerId,
+    game.players,
+    game.transfers.filter((t) => t.source === "early_cashout"),
+  );
 
   const db = getDb();
   const [updated] = await db
@@ -374,15 +413,9 @@ export async function undoCashOut(
     return { ok: false, error: "That player is still seated." };
   }
 
-  await db
-    .delete(transfers)
-    .where(
-      and(
-        eq(transfers.gameId, gameId),
-        eq(transfers.source, "early_cashout"),
-        or(eq(transfers.fromPlayerId, playerId), eq(transfers.toPlayerId, playerId)),
-      ),
-    );
+  if (own?.id) {
+    await db.delete(transfers).where(eq(transfers.id, own.id));
+  }
 
   revalidateAll(gameId);
   updateTag(LIVE_GAME_TAG);
@@ -445,13 +478,11 @@ export async function settleGame(
   const remainingScored = scored.filter((seat) =>
     remaining.some((r) => r.playerId === seat.playerId),
   );
-  const earlyScored = scored.filter((seat) =>
-    early.some((e) => e.playerId === seat.playerId),
-  );
+  const earlyMoves = game.transfers.filter((t) => t.source === "early_cashout");
   const pays =
     remaining.length === 0
       ? []
-      : minTransfers(seatsWithCage(remainingScored, earlyScored));
+      : minTransfers(applyEarlyTransfers(remainingScored, earlyMoves));
   const db = getDb();
 
   for (const seat of remainingScored) {
@@ -473,8 +504,8 @@ export async function settleGame(
     await db.insert(transfers).values(
       pays.map((pay) => ({
         gameId,
-        fromPlayerId: pay.fromId === CAGE_ID ? null : pay.fromId,
-        toPlayerId: pay.toId === CAGE_ID ? null : pay.toId,
+        fromPlayerId: pay.fromId,
+        toPlayerId: pay.toId,
         amount: pay.amount,
         source: "settle" as const,
       })),

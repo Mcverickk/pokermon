@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import {
   addPlayerToGame,
   cashOutPlayer,
@@ -11,9 +11,19 @@ import {
   unlockGame,
 } from "@/app/actions";
 import type { GameDetail, RosterPlayer } from "@/lib/db/queries";
-import { chips, formatNight, handleTotal, inr, moneyDiff } from "@/lib/ledger";
+import {
+  cashOutLine,
+  chips,
+  formatNight,
+  handleTotal,
+  inr,
+  moneyDiff,
+  ownEarlyTransfer,
+  remainingObligation,
+} from "@/lib/ledger";
 import { ChipStack } from "./PokerChip";
 import { PinPad } from "./PinPad";
+import { usePendingTransition } from "./PendingProvider";
 import { RefreshButton } from "./RefreshButton";
 
 export function LiveTable({
@@ -40,7 +50,7 @@ export function LiveTable({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = usePendingTransition();
 
   const handle = handleTotal(
     game.players.reduce((sum, p) => sum + p.buyIns, 0),
@@ -174,11 +184,20 @@ export function LiveTable({
       {cashed.length ? (
         <section className="flex flex-col gap-2">
           <p className="text-xs font-medium tracking-[0.18em] text-gold uppercase">
-            With the cage
+            Cashed out
           </p>
           <ul className="flex flex-col gap-2">
             {cashed.map((seat) => {
-              const diff = seat.moneyDiff ?? 0;
+              const move = ownEarlyTransfer(
+                seat.playerId,
+                game.players,
+                game.transfers.filter((t) => t.source === "early_cashout"),
+              );
+              const paidLine = !move
+                ? "Even"
+                : move.toId === seat.playerId
+                  ? `${move.fromName} paid ${inr(move.amount)}`
+                  : `Paid ${move.toName} ${inr(move.amount)}`;
               return (
                 <li
                   key={seat.playerId}
@@ -189,12 +208,7 @@ export function LiveTable({
                       {seat.name}
                     </p>
                     <p className="text-xs text-mute">
-                      {chips(seat.finalStack ?? 0)} chips ·{" "}
-                      {diff > 0
-                        ? `Cage paid ${inr(diff)}`
-                        : diff < 0
-                          ? `Paid the cage ${inr(-diff)}`
-                          : "Even"}
+                      {chips(seat.finalStack ?? 0)} chips · {paidLine}
                     </p>
                   </div>
                   <button
@@ -318,17 +332,32 @@ export function LiveTable({
 
       {cashOut ? (
         <CashOutSheet
+          playerId={cashOut.playerId}
           name={cashOut.name}
           buyIns={cashOut.buyIns}
           stackValue={game.stackValue}
           buyInCash={game.buyInCash}
+          counterparties={[
+            ...game.players.filter(
+              (p) => p.playerId !== cashOut.playerId && !p.cashedOutAt,
+            ),
+            ...game.players.filter(
+              (p) => p.playerId !== cashOut.playerId && p.cashedOutAt,
+            ),
+          ]}
+          earlyMoves={game.transfers.filter((t) => t.source === "early_cashout")}
           pending={pending}
           onClose={() => setCashOut(null)}
-          onConfirm={(finalStack) => {
+          onConfirm={(finalStack, counterpartyId) => {
             const id = cashOut.playerId;
             setCashOut(null);
             start(async () => {
-              const result = await cashOutPlayer(game.id, id, finalStack);
+              const result = await cashOutPlayer(
+                game.id,
+                id,
+                finalStack,
+                counterpartyId,
+              );
               if (!result.ok) {
                 setError(result.error);
                 if (result.needsPin) setPinOpen(true);
@@ -341,34 +370,43 @@ export function LiveTable({
   );
 }
 
-function cageLine(name: string, diff: number) {
-  if (diff > 0) return `Cage pays ${name} ${inr(diff)}`;
-  if (diff < 0) return `${name} pays the cage ${inr(-diff)}`;
-  return "Even — no cash";
-}
-
 function CashOutSheet({
+  playerId,
   name,
   buyIns,
   stackValue,
   buyInCash,
+  counterparties,
+  earlyMoves,
   pending,
   onConfirm,
   onClose,
 }: {
+  playerId: string;
   name: string;
   buyIns: number;
   stackValue: number;
   buyInCash: number;
+  counterparties: { playerId: string; name: string; cashedOutAt: Date | null }[];
+  earlyMoves: { fromId: string | null; toId: string | null; amount: number }[];
   pending: boolean;
-  onConfirm: (finalStack: number) => void;
+  onConfirm: (finalStack: number, counterpartyId: string | null) => void;
   onClose: () => void;
 }) {
   const [stack, setStack] = useState("");
+  const [payee, setPayee] = useState(
+    () => (counterparties.length === 1 ? counterparties[0].playerId : ""),
+  );
   const filled = stack !== "" && Number(stack) >= 0;
-  const diff = filled
+  const chipDiff = filled
     ? moneyDiff(Number(stack), buyIns, stackValue, buyInCash)
     : 0;
+  const owed = filled
+    ? remainingObligation(chipDiff, earlyMoves, playerId)
+    : 0;
+  const payeeName = counterparties.find((p) => p.playerId === payee)?.name;
+  const needsPayee = filled && owed !== 0;
+  const canConfirm = filled && (!needsPayee || Boolean(payee));
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-felt-deep/70 p-4 backdrop-blur-md lg:items-center">
@@ -386,8 +424,37 @@ function CashOutSheet({
           placeholder="0"
           className="mt-1 w-full rounded-2xl bg-ivory/8 px-4 py-3 text-ivory placeholder:text-mute"
         />
+        {needsPayee ? (
+          <div className="mt-4">
+            <p className="text-xs text-mute">
+              {owed > 0 ? "Who pays them?" : "Who did they pay?"}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {counterparties.map((person) => (
+                <button
+                  key={person.playerId}
+                  type="button"
+                  onClick={() => setPayee(person.playerId)}
+                  className={`rounded-full px-3 py-1.5 text-sm ${
+                    payee === person.playerId
+                      ? "bg-gold/20 text-gold"
+                      : "bg-ivory/8 text-ivory"
+                  }`}
+                >
+                  {person.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <p className={`mt-3 text-sm ${filled ? "text-gold" : "text-mute"}`}>
-          {filled ? cageLine(name, diff) : "Count their tray, then settle with the cage."}
+          {filled
+            ? owed === 0
+              ? "Even — no cash"
+              : payeeName
+                ? cashOutLine(name, payeeName, owed)
+                : "Pick who they settled with."
+            : "Count their tray, then pick who settled the cash."}
         </p>
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button
@@ -399,8 +466,10 @@ function CashOutSheet({
           </button>
           <button
             type="button"
-            disabled={pending || !filled}
-            onClick={() => onConfirm(Number(stack))}
+            disabled={pending || !canConfirm}
+            onClick={() =>
+              onConfirm(Number(stack), needsPayee ? payee : null)
+            }
             className="btn-primary h-12 text-sm font-semibold disabled:opacity-40"
           >
             Cash out

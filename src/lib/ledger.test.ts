@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  CAGE_ID,
+  applyEarlyTransfers,
+  cashOutLine,
   chipConservation,
   handleTotal,
   minTransfers,
   moneyDiff,
+  ownEarlyTransfer,
+  remainingObligation,
   scoreSeats,
-  seatsWithCage,
 } from "./ledger";
 
 /** Bachatt Poker sheet — 11-08-2026, ₹500 buy-in / 5,000 stack. */
@@ -68,35 +70,80 @@ describe("sheet math 11-08-2026", () => {
   });
 });
 
-describe("early cash-out with the cage", () => {
+describe("early cash-out to a player", () => {
   it("leaves min-transfers unchanged when nobody walked", () => {
     const seats = scoreSeats(night, STACK, CASH);
-    expect(seatsWithCage(seats, [])).toEqual(seats);
-    expect(minTransfers(seatsWithCage(seats, []))).toEqual(minTransfers(seats));
+    expect(applyEarlyTransfers(seats, [])).toEqual(seats);
+    expect(minTransfers(applyEarlyTransfers(seats, []))).toEqual(minTransfers(seats));
   });
 
-  it("settles remaining players plus the cage after an early winner", () => {
+  it("adds already-paid cash onto the payee still at the table", () => {
     const seats = scoreSeats(night, STACK, CASH);
-    const early = seats.filter((s) => s.playerId === "murli");
     const remaining = seats.filter((s) => s.playerId !== "murli");
-    expect(early[0].moneyDiff).toBe(1105);
-    expect(remaining.reduce((sum, s) => sum + s.moneyDiff, 0)).toBe(-1105);
+    const murli = seats.find((s) => s.playerId === "murli")!;
+    expect(murli.moneyDiff).toBe(1105);
 
-    const mixed = seatsWithCage(remaining, early);
-    expect(mixed.find((s) => s.playerId === CAGE_ID)?.moneyDiff).toBe(1105);
+    const early = [
+      {
+        fromId: "chirag",
+        toId: "murli",
+        amount: murli.moneyDiff,
+      },
+    ];
+    expect(remainingObligation(murli.moneyDiff, [], "murli")).toBe(1105);
 
-    const transfers = minTransfers(mixed);
-    expect(transfers.some((t) => t.fromId === CAGE_ID || t.toId === CAGE_ID)).toBe(
-      true,
+    const adjusted = applyEarlyTransfers(remaining, early);
+    const chirag = adjusted.find((s) => s.playerId === "chirag")!;
+    expect(chirag.moneyDiff).toBe(
+      remaining.find((s) => s.playerId === "chirag")!.moneyDiff + 1105,
     );
+    expect(adjusted.reduce((sum, s) => sum + s.moneyDiff, 0)).toBe(0);
+
+    const transfers = minTransfers(adjusted);
+    expect(
+      transfers.every((t) => t.fromId !== "murli" && t.toId !== "murli"),
+    ).toBe(true);
 
     const { paid, received } = nets(transfers);
-    for (const seat of mixed) {
-      const net = (received.get(seat.playerId) ?? 0) - (paid.get(seat.playerId) ?? 0);
+    for (const seat of adjusted) {
+      const net =
+        (received.get(seat.playerId) ?? 0) - (paid.get(seat.playerId) ?? 0);
       expect(net).toBe(seat.moneyDiff);
     }
-    expect(
-      mixed.reduce((sum, s) => sum + s.moneyDiff, 0),
-    ).toBe(0);
+  });
+
+  it("rolls a prior cash-out into the next walker's remaining bill", () => {
+    const seats = scoreSeats(night, STACK, CASH);
+    const murli = seats.find((s) => s.playerId === "murli")!;
+    const chirag = seats.find((s) => s.playerId === "chirag")!;
+    const prior = [{ fromId: "chirag", toId: "murli", amount: murli.moneyDiff }];
+    expect(remainingObligation(chirag.moneyDiff, prior, "chirag")).toBe(
+      chirag.moneyDiff + murli.moneyDiff,
+    );
+  });
+
+  it("names who pays whom on the cash-out line", () => {
+    expect(cashOutLine("Murli", "Chirag", 1105)).toBe(
+      "Chirag pays Murli ₹1,105",
+    );
+    expect(cashOutLine("Aakarshit", "Chirag", -2500)).toBe(
+      "Aakarshit pays Chirag ₹2,500",
+    );
+    expect(cashOutLine("Jai", "Chirag", 0)).toBe("Even — no cash");
+  });
+
+  it("picks the walker's own transfer after they also banked someone else", () => {
+    const t0 = new Date("2026-08-11T18:00:00.000Z");
+    const t1 = new Date("2026-08-11T19:00:00.000Z");
+    const seats = [
+      { playerId: "murli", moneyDiff: 1105, cashedOutAt: t0 },
+      { playerId: "chirag", moneyDiff: -1640, cashedOutAt: t1 },
+    ];
+    const transfers = [
+      { fromId: "chirag", toId: "murli", fromName: "Chirag", toName: "Murli", amount: 1105 },
+      { fromId: "chirag", toId: "buddha", fromName: "Chirag", toName: "Buddha", amount: 535 },
+    ];
+    expect(ownEarlyTransfer("murli", seats, transfers)?.toId).toBe("murli");
+    expect(ownEarlyTransfer("chirag", seats, transfers)).toEqual(transfers[1]);
   });
 });

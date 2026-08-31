@@ -19,8 +19,15 @@ export type Transfer = {
   amount: number;
 };
 
-export const CAGE_ID = "__cage__";
 export const CAGE_NAME = "Cage";
+
+export type CashMove = {
+  fromId: string | null;
+  toId: string | null;
+  fromName?: string;
+  toName?: string;
+  amount: number;
+};
 
 export function buyInStack(buyIns: number, stackValue: number): number {
   return buyIns * stackValue;
@@ -129,26 +136,91 @@ export function minTransfers(seats: SeatResult[]): Transfer[] {
   return transfers;
 }
 
-export function cageSeat(moneyDiff: number): SeatResult {
-  return {
-    playerId: CAGE_ID,
-    name: CAGE_NAME,
-    buyIns: 0,
-    finalStack: 0,
-    buyInStack: 0,
-    stackDiff: 0,
-    moneyDiff,
-  };
+/** Chip P/L plus cash already paid out, minus cash already collected. */
+export function remainingObligation(
+  chipDiff: number,
+  priorMoves: CashMove[],
+  playerId: string,
+): number {
+  let paid = 0;
+  let received = 0;
+  for (const move of priorMoves) {
+    if (move.fromId === playerId) paid += move.amount;
+    if (move.toId === playerId) received += move.amount;
+  }
+  return chipDiff + paid - received;
 }
 
-/** Remaining seats plus the cage when early cash-outs left a tray imbalance. */
-export function seatsWithCage(
+/**
+ * Fold early person-to-person cash-outs into the seats still at the table.
+ * A remaining player who already paid is owed that cash back from the table;
+ * one who already collected owes it back.
+ */
+export function applyEarlyTransfers(
   remaining: SeatResult[],
-  early: SeatResult[],
+  earlyMoves: CashMove[],
 ): SeatResult[] {
-  const cageMoney = early.reduce((sum, seat) => sum + seat.moneyDiff, 0);
-  if (cageMoney === 0) return remaining;
-  return [...remaining, cageSeat(cageMoney)];
+  const adjusted = remaining.map((seat) => ({ ...seat }));
+  const byId = new Map(adjusted.map((seat) => [seat.playerId, seat]));
+  for (const move of earlyMoves) {
+    if (move.fromId) {
+      const from = byId.get(move.fromId);
+      if (from) from.moneyDiff += move.amount;
+    }
+    if (move.toId) {
+      const to = byId.get(move.toId);
+      if (to) to.moneyDiff -= move.amount;
+    }
+  }
+  return adjusted;
+}
+
+export function cashOutLine(
+  playerName: string,
+  counterpartyName: string,
+  obligation: number,
+): string {
+  if (obligation > 0) return `${counterpartyName} pays ${playerName} ${inr(obligation)}`;
+  if (obligation < 0) return `${playerName} pays ${counterpartyName} ${inr(-obligation)}`;
+  return "Even — no cash";
+}
+
+/** The early transfer that settled this player's walk, replaying cash-outs in order. */
+export function ownEarlyTransfer<T extends CashMove>(
+  playerId: string,
+  seats: {
+    playerId: string;
+    moneyDiff: number | null;
+    cashedOutAt: Date | null;
+  }[],
+  transfers: T[],
+): T | null {
+  const ordered = [...seats]
+    .filter((seat) => seat.cashedOutAt)
+    .sort(
+      (a, b) => a.cashedOutAt!.getTime() - b.cashedOutAt!.getTime(),
+    );
+  const unused = [...transfers];
+  const prior: CashMove[] = [];
+  for (const seat of ordered) {
+    const owed = remainingObligation(seat.moneyDiff ?? 0, prior, seat.playerId);
+    let move: T | null = null;
+    if (owed !== 0) {
+      const idx = unused.findIndex(
+        (row) =>
+          row.amount === Math.abs(owed) &&
+          (owed > 0
+            ? row.toId === seat.playerId
+            : row.fromId === seat.playerId),
+      );
+      if (idx >= 0) {
+        move = unused.splice(idx, 1)[0];
+        prior.push(move);
+      }
+    }
+    if (seat.playerId === playerId) return move;
+  }
+  return null;
 }
 
 export function formatReceipt(args: {
@@ -181,7 +253,7 @@ export function formatReceipt(args: {
       ? args.transfers.map(
           (t) => `${t.fromName} → ${t.toName}  ${inr(t.amount)}`,
         )
-      : ["No payments — even cage."]),
+      : ["No payments — even table."]),
   ];
   return lines.join("\n");
 }

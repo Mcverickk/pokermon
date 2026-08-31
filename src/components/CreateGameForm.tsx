@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { createGame } from "@/app/actions";
 import { PinPad } from "./PinPad";
+import { usePendingTransition } from "./PendingProvider";
 
 type Roster = { id: string; name: string }[];
 
@@ -17,7 +18,7 @@ export function CreateGameForm({ roster }: { roster: Roster }) {
   const [pin, setPin] = useState<string | null>(null);
   const [pad, setPad] = useState<"set" | "confirm" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = usePendingTransition();
 
   const seats = useMemo(() => {
     const fromRoster = roster

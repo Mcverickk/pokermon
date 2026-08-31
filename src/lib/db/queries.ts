@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
-import { currentMonthKey, monthBoundsUtc } from "@/lib/ledger";
+import { CAGE_NAME, currentMonthKey, monthBoundsUtc } from "@/lib/ledger";
 import { getDb } from "./index";
 import { gamePlayers, games, players, transfers } from "./schema";
 
@@ -54,6 +54,7 @@ export type GameSeat = {
 export type TransferSource = "early_cashout" | "settle";
 
 export type GameTransfer = {
+  id: string;
   fromId: string | null;
   fromName: string;
   toId: string | null;
@@ -172,10 +173,15 @@ async function assembleGame(id: string): Promise<GameDetail | null> {
     bb: game.bb,
     players: seats,
     transfers: pays.map((row) => ({
+      id: row.id,
       fromId: row.fromPlayerId,
-      fromName: row.fromPlayerId ? (names.get(row.fromPlayerId) ?? "Unknown") : "Cage",
+      fromName: row.fromPlayerId
+        ? (names.get(row.fromPlayerId) ?? "Unknown")
+        : CAGE_NAME,
       toId: row.toPlayerId,
-      toName: row.toPlayerId ? (names.get(row.toPlayerId) ?? "Unknown") : "Cage",
+      toName: row.toPlayerId
+        ? (names.get(row.toPlayerId) ?? "Unknown")
+        : CAGE_NAME,
       amount: row.amount,
       source: row.source,
     })),

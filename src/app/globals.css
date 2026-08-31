@@ -153,6 +153,16 @@ body {
   }
 }
 
+.felt-loader-chip {
+  animation: felt-chip-spin 1.15s linear infinite;
+}
+
+@keyframes felt-chip-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .playing-card {
   background: var(--color-paper);
   color: #1b1714;

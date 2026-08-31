@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { refreshBoardCache, refreshLiveCache } from "@/app/actions";
+import { usePendingTransition } from "./PendingProvider";
 
 export function RefreshButton({
   className = "",
@@ -12,7 +13,7 @@ export function RefreshButton({
   scope?: "board" | "live";
 }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
+  const [pending, start] = usePendingTransition();
   const [spin, setSpin] = useState(false);
 
   return (

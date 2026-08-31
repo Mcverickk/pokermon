@@ -84,12 +84,12 @@ export function Receipt({ game }: { game: GameDetail }) {
                 className="mt-3 text-xs font-medium tracking-[0.18em] uppercase"
                 style={{ color: "#8fa396" }}
               >
-                Already with the cage
+                Already paid
               </p>
               <ul className="mt-1">
                 {earlyPays.map((t) => (
                   <li
-                    key={`early-${t.fromId}-${t.toId}-${t.amount}`}
+                    key={t.id}
                     className="flex justify-between text-sm tabular"
                   >
                     <span>
@@ -111,7 +111,7 @@ export function Receipt({ game }: { game: GameDetail }) {
             <ul className="mt-1">
               {tablePays.map((t) => (
                 <li
-                  key={`settle-${t.fromId}-${t.toId}-${t.amount}`}
+                    key={t.id}
                   className="flex justify-between text-sm tabular"
                 >
                   <span>
@@ -124,7 +124,7 @@ export function Receipt({ game }: { game: GameDetail }) {
           ) : (
             <p className="mt-1 text-sm">
               {earlyPays.length
-                ? "No leftover payments — the cage is square."
+                ? "No leftover payments — already square."
                 : "No payments — even table."}
             </p>
           )}

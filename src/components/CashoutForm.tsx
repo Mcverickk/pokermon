@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { settleGame, unlockGame, warmBoardAfterSettle } from "@/app/actions";
 import type { GameDetail } from "@/lib/db/queries";
-import { chipConservation, chips, inr } from "@/lib/ledger";
+import { chipConservation, chips, inr, ownEarlyTransfer } from "@/lib/ledger";
 import { PinPad } from "./PinPad";
+import { usePendingTransition } from "./PendingProvider";
 import { RefreshButton } from "./RefreshButton";
 
 export function CashoutForm({
@@ -27,7 +28,7 @@ export function CashoutForm({
   const [error, setError] = useState<string | null>(null);
   const [pinOpen, setPinOpen] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, start] = usePendingTransition();
 
   const parsed = useMemo(
     () =>
@@ -87,39 +88,55 @@ export function CashoutForm({
       </header>
 
       <ul className="flex flex-col gap-2 lg:grid lg:grid-cols-2">
-        {game.players.map((seat) => (
-          <li
-            key={seat.playerId}
-            className="glass flex items-center gap-3 rounded-3xl px-3 py-3"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-lg tracking-tight">{seat.name}</p>
-              <p className="text-xs text-mute">
-                {seat.buyIns} buy-in{seat.buyIns === 1 ? "" : "s"} · issued{" "}
-                {chips(seat.buyIns * game.stackValue)}
-                {seat.cashedOutAt ? " · with the cage" : ""}
-              </p>
-            </div>
-            {seat.cashedOutAt ? (
-              <p className="w-28 px-3 py-2 text-right font-display text-2xl tabular text-gold">
-                {chips(seat.finalStack ?? 0)}
-              </p>
-            ) : (
-              <input
-                inputMode="numeric"
-                value={stacks[seat.playerId]}
-                onChange={(e) =>
-                  setStacks((cur) => ({
-                    ...cur,
-                    [seat.playerId]: e.target.value.replace(/[^\d]/g, ""),
-                  }))
-                }
-                placeholder="0"
-                className="w-28 rounded-2xl bg-ivory/8 px-3 py-2 text-right font-display text-2xl tabular text-ivory outline-none"
-              />
-            )}
-          </li>
-        ))}
+        {game.players.map((seat) => {
+          const move = seat.cashedOutAt
+            ? ownEarlyTransfer(
+                seat.playerId,
+                game.players,
+                game.transfers.filter((t) => t.source === "early_cashout"),
+              )
+            : null;
+          const leftNote = !seat.cashedOutAt
+            ? null
+            : !move
+              ? " · even"
+              : move.toId === seat.playerId
+                ? ` · ${move.fromName} paid ${inr(move.amount)}`
+                : ` · paid ${move.toName} ${inr(move.amount)}`;
+          return (
+            <li
+              key={seat.playerId}
+              className="glass flex items-center gap-3 rounded-3xl px-3 py-3"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-lg tracking-tight">{seat.name}</p>
+                <p className="text-xs text-mute">
+                  {seat.buyIns} buy-in{seat.buyIns === 1 ? "" : "s"} · issued{" "}
+                  {chips(seat.buyIns * game.stackValue)}
+                  {leftNote}
+                </p>
+              </div>
+              {seat.cashedOutAt ? (
+                <p className="w-28 px-3 py-2 text-right font-display text-2xl tabular text-gold">
+                  {chips(seat.finalStack ?? 0)}
+                </p>
+              ) : (
+                <input
+                  inputMode="numeric"
+                  value={stacks[seat.playerId]}
+                  onChange={(e) =>
+                    setStacks((cur) => ({
+                      ...cur,
+                      [seat.playerId]: e.target.value.replace(/[^\d]/g, ""),
+                    }))
+                  }
+                  placeholder="0"
+                  className="w-28 rounded-2xl bg-ivory/8 px-3 py-2 text-right font-display text-2xl tabular text-ivory outline-none"
+                />
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       <div
@@ -144,8 +161,8 @@ export function CashoutForm({
         ) : (
           <p>
             {remaining.length
-              ? "Enter the stacks still on the table. Locked rows already left with the cage."
-              : "Everyone already cashed out with the cage. Settle to close the book."}
+              ? "Enter the stacks still on the table. Locked rows already cashed out."
+              : "Everyone already cashed out. Settle to close the book."}
           </p>
         )}
       </div>
