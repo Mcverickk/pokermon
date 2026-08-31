@@ -15,11 +15,19 @@ export const players = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     name: text("name").notNull(),
     aliases: text("aliases").array().notNull().default(sql`'{}'`),
+    username: text("username"),
+    passwordHash: text("password_hash"),
+    upiId: text("upi_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
-  (table) => [uniqueIndex("players_name_unique").on(table.name)],
+  (table) => [
+    uniqueIndex("players_name_unique").on(table.name),
+    uniqueIndex("players_username_unique")
+      .on(table.username)
+      .where(sql`${table.username} is not null`),
+  ],
 );
 
 export const games = pgTable("games", {

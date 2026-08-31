@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, useState } from "react";
+import { AccountLink } from "./AccountLink";
 
 const items = [
   { href: "/", label: "Table", icon: TableIcon },
@@ -16,7 +17,11 @@ function tabIndex(path: string) {
   return 0;
 }
 
-export function BottomNav() {
+export function BottomNav({
+  account,
+}: {
+  account: { label: string; href: string };
+}) {
   const path = usePathname();
   const index = tabIndex(path);
   const previous = useRef(index);
@@ -35,12 +40,15 @@ export function BottomNav() {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] lg:static lg:inset-x-auto lg:bottom-auto lg:flex lg:items-center lg:justify-between lg:px-0 lg:pb-0 lg:pt-6">
-      <Link
-        href="/"
-        className="hidden font-display text-2xl tracking-tight text-ivory lg:block"
-      >
-        Pokermon
-      </Link>
+      <div className="hidden items-baseline gap-4 lg:flex">
+        <Link
+          href="/"
+          className="font-display text-2xl tracking-tight text-ivory"
+        >
+          Pokermon
+        </Link>
+        <AccountLink label={account.label} href={account.href} />
+      </div>
       <ul className="glass relative mx-auto grid max-w-md grid-cols-3 rounded-full p-1.5 lg:mx-0 lg:w-[22rem] lg:max-w-none">
         <span
           aria-hidden

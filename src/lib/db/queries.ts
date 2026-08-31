@@ -59,6 +59,7 @@ export type GameTransfer = {
   fromName: string;
   toId: string | null;
   toName: string;
+  toUpiId: string | null;
   amount: number;
   source: TransferSource;
 };
@@ -107,7 +108,7 @@ const cachedLiveGame = unstable_cache(
     const game = await assembleGame(live.id);
     return game ? freezeGame(game) : null;
   },
-  ["live-game"],
+  ["live-game", "with-upi"],
   { tags: [LIVE_GAME_TAG], revalidate: false },
 );
 
@@ -117,7 +118,7 @@ const cachedSettledGame = unstable_cache(
     if (!game || game.status !== "settled") return null;
     return freezeGame(game);
   },
-  ["settled-game"],
+  ["settled-game", "with-upi"],
   { tags: [SETTLED_GAME_TAG], revalidate: false },
 );
 
@@ -150,6 +151,7 @@ async function assembleGame(id: string): Promise<GameDetail | null> {
       finalStack: gamePlayers.finalStack,
       moneyDiff: gamePlayers.moneyDiff,
       cashedOutAt: gamePlayers.cashedOutAt,
+      upiId: players.upiId,
     })
     .from(gamePlayers)
     .innerJoin(players, eq(players.id, gamePlayers.playerId))
@@ -162,6 +164,7 @@ async function assembleGame(id: string): Promise<GameDetail | null> {
     .where(eq(transfers.gameId, id));
 
   const names = new Map(seats.map((seat) => [seat.playerId, seat.name]));
+  const upis = new Map(seats.map((seat) => [seat.playerId, seat.upiId]));
 
   return {
     id: game.id,
@@ -171,7 +174,14 @@ async function assembleGame(id: string): Promise<GameDetail | null> {
     stackValue: game.stackValue,
     sb: game.sb,
     bb: game.bb,
-    players: seats,
+    players: seats.map((seat) => ({
+      playerId: seat.playerId,
+      name: seat.name,
+      buyIns: seat.buyIns,
+      finalStack: seat.finalStack,
+      moneyDiff: seat.moneyDiff,
+      cashedOutAt: seat.cashedOutAt,
+    })),
     transfers: pays.map((row) => ({
       id: row.id,
       fromId: row.fromPlayerId,
@@ -182,6 +192,7 @@ async function assembleGame(id: string): Promise<GameDetail | null> {
       toName: row.toPlayerId
         ? (names.get(row.toPlayerId) ?? "Unknown")
         : CAGE_NAME,
+      toUpiId: row.toPlayerId ? (upis.get(row.toPlayerId) ?? null) : null,
       amount: row.amount,
       source: row.source,
     })),

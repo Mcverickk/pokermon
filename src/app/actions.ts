@@ -18,17 +18,26 @@ import {
   BOARD_CACHE_TAG,
   LIVE_GAME_TAG,
   ROSTER_CACHE_TAG,
+  SETTLED_GAME_TAG,
   getGame,
   getLiveGame,
   warmBoardCache,
 } from "@/lib/db/queries";
+import {
+  getLoggedInPlayer,
+  mintUserSession,
+  userCookieName,
+  userCookieOptions,
+} from "@/lib/auth";
 import { hashPin, isFourDigitPin, verifyPin } from "@/lib/pin";
+import { isUsablePassword, verifyPassword } from "@/lib/password";
 import {
   mintSession,
   readSession,
   sessionCookieName,
   sessionCookieOptions,
 } from "@/lib/session";
+import { isUpiId, normalizeUpiId } from "@/lib/upi";
 
 const FAIL_LIMIT = 5;
 const LOCK_MS = 60_000;
@@ -520,5 +529,78 @@ export async function settleGame(
   revalidateAll(gameId);
   updateTag(BOARD_CACHE_TAG);
   updateTag(LIVE_GAME_TAG);
+  return { ok: true };
+}
+
+export async function login(
+  username: string,
+  password: string,
+): Promise<ActionResult<{ hasUpi: boolean }>> {
+  const handle = username.trim().toLowerCase();
+  if (!handle || !isUsablePassword(password)) {
+    return { ok: false, error: "Wrong username or password." };
+  }
+
+  const db = getDb();
+  const [person] = await db
+    .select({
+      id: players.id,
+      passwordHash: players.passwordHash,
+      upiId: players.upiId,
+    })
+    .from(players)
+    .where(eq(players.username, handle))
+    .limit(1);
+
+  if (!person?.passwordHash) {
+    return { ok: false, error: "Wrong username or password." };
+  }
+
+  const match = await verifyPassword(password, person.passwordHash);
+  if (!match) {
+    return { ok: false, error: "Wrong username or password." };
+  }
+
+  (await cookies()).set(
+    userCookieName(),
+    mintUserSession(person.id),
+    userCookieOptions,
+  );
+  revalidatePath("/", "layout");
+  return { ok: true, hasUpi: Boolean(person.upiId) };
+}
+
+export async function logout(): Promise<ActionResult> {
+  (await cookies()).set(userCookieName(), "", {
+    ...userCookieOptions,
+    maxAge: 0,
+  });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function saveUpi(upiId: string): Promise<ActionResult> {
+  const player = await getLoggedInPlayer();
+  if (!player) {
+    return { ok: false, error: "Log in to save a UPI ID." };
+  }
+  const normalized = normalizeUpiId(upiId);
+  if (!isUpiId(normalized)) {
+    return { ok: false, error: "That doesn’t look like a UPI ID." };
+  }
+
+  const db = getDb();
+  await db
+    .update(players)
+    .set({ upiId: normalized })
+    .where(eq(players.id, player.id));
+
+  updateTag(ROSTER_CACHE_TAG);
+  updateTag(SETTLED_GAME_TAG);
+  updateTag(LIVE_GAME_TAG);
+  revalidatePath("/", "layout");
+  revalidatePath("/me");
+  revalidatePath("/history");
+  revalidatePath("/game", "layout");
   return { ok: true };
 }
