@@ -1,0 +1,14 @@
+{
+  "name": "pokermon-neon-local-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-only proxy that speaks Neon's SQL-over-HTTP protocol and forwards to a local Postgres, so the app's @neondatabase/serverless driver works offline without code changes.",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.13.1",
+    "ws": "^8.18.0"
+  }
+}
