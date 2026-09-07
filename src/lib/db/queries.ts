@@ -1,6 +1,12 @@
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
-import { CAGE_NAME, currentMonthKey, monthBoundsUtc } from "@/lib/ledger";
+import {
+  ALL_TIME_MONTH_KEY,
+  CAGE_NAME,
+  currentMonthKey,
+  leaderboardAverage,
+  monthBoundsUtc,
+} from "@/lib/ledger";
 import { getDb } from "./index";
 import { gamePlayers, games, players, transfers } from "./schema";
 
@@ -270,6 +276,8 @@ export type LeaderboardRow = {
   playerId: string;
   name: string;
   net: number;
+  won: number;
+  average: number;
   games: number;
   wins: number;
   losses: number;
@@ -283,17 +291,20 @@ export type PlayerNight = {
   playedOn: Date;
   moneyDiff: number;
   buyIns: number;
+  buyInCash: number;
 };
 
 export const getLeaderboard = unstable_cache(
   async (monthKey: string): Promise<LeaderboardRow[]> => {
     const db = getDb();
-    const { start, end } = monthBoundsUtc(monthKey);
+    const monthBounds =
+      monthKey === ALL_TIME_MONTH_KEY ? null : monthBoundsUtc(monthKey);
     const rows = await db
       .select({
         playerId: players.id,
         name: players.name,
         net: sql<number>`coalesce(sum(${gamePlayers.moneyDiff}), 0)`,
+        won: sql<number>`coalesce(sum((${gamePlayers.moneyDiff})::double precision / nullif(${games.buyInCash}, 0)), 0)`,
         games: sql<number>`count(${gamePlayers.id})`,
         wins: sql<number>`sum(case when ${gamePlayers.moneyDiff} > 0 then 1 else 0 end)`,
         losses: sql<number>`sum(case when ${gamePlayers.moneyDiff} < 0 then 1 else 0 end)`,
@@ -307,24 +318,39 @@ export const getLeaderboard = unstable_cache(
       .where(
         and(
           eq(games.status, "settled"),
-          gte(games.playedOn, start),
-          lt(games.playedOn, end),
+          monthBounds
+            ? and(
+                gte(games.playedOn, monthBounds.start),
+                lt(games.playedOn, monthBounds.end),
+              )
+            : undefined,
         ),
       )
-      .groupBy(players.id, players.name)
-      .orderBy(sql`sum(${gamePlayers.moneyDiff}) desc`);
+      .groupBy(players.id, players.name);
 
-    return rows.map((row) => ({
-      playerId: row.playerId,
-      name: row.name,
-      net: Number(row.net),
-      games: Number(row.games),
-      wins: Number(row.wins),
-      losses: Number(row.losses),
-      even: Number(row.even),
-      biggestWin: Number(row.biggestWin),
-      biggestLoss: Number(row.biggestLoss),
-    }));
+    return rows
+      .map((row) => {
+        const gamesCount = Number(row.games);
+        const won = Number(row.won);
+        return {
+          playerId: row.playerId,
+          name: row.name,
+          net: Number(row.net),
+          won,
+          average: leaderboardAverage(won, gamesCount),
+          games: gamesCount,
+          wins: Number(row.wins),
+          losses: Number(row.losses),
+          even: Number(row.even),
+          biggestWin: Number(row.biggestWin),
+          biggestLoss: Number(row.biggestLoss),
+        };
+      })
+      .sort((a, b) => {
+        if (b.average !== a.average) return b.average - a.average;
+        if (b.games !== a.games) return b.games - a.games;
+        return b.won - a.won;
+      });
   },
   ["leaderboard"],
   { tags: [BOARD_CACHE_TAG], revalidate: false },
@@ -340,6 +366,7 @@ const cachedPlayerNights = unstable_cache(
         playedOn: games.playedOn,
         moneyDiff: gamePlayers.moneyDiff,
         buyIns: gamePlayers.buyIns,
+        buyInCash: games.buyInCash,
       })
       .from(gamePlayers)
       .innerJoin(games, eq(games.id, gamePlayers.gameId))
@@ -365,6 +392,7 @@ const cachedPlayerNights = unstable_cache(
           : new Date(row.playedOn).toISOString(),
       moneyDiff: row.moneyDiff ?? 0,
       buyIns: row.buyIns,
+      buyInCash: row.buyInCash,
     }));
   },
   ["player-nights"],
@@ -389,9 +417,11 @@ export async function warmBoardCache(
   const monthKey = currentMonthKey();
   await Promise.all([
     getLeaderboard(monthKey),
+    getLeaderboard(ALL_TIME_MONTH_KEY),
     listSettledGames(),
     gameId ? getSettledGame(gameId) : Promise.resolve(null),
     ...playerIds.map((id) => getPlayerNights(id, monthKey)),
+    ...playerIds.map((id) => getPlayerNights(id)),
   ]);
 }
 

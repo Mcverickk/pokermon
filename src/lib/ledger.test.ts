@@ -3,9 +3,12 @@ import {
   applyEarlyTransfers,
   cashOutLine,
   chipConservation,
+  formatBuyIns,
   handleTotal,
+  leaderboardAverage,
   minTransfers,
   moneyDiff,
+  nightBuyInProfit,
   ownEarlyTransfer,
   remainingObligation,
   scoreSeats,
@@ -145,5 +148,32 @@ describe("early cash-out to a player", () => {
     ];
     expect(ownEarlyTransfer("murli", seats, transfers)?.toId).toBe("murli");
     expect(ownEarlyTransfer("chirag", seats, transfers)).toEqual(transfers[1]);
+  });
+});
+
+describe("leaderboard average", () => {
+  it("counts a night as moneyDiff over that night's buy-in cash", () => {
+    expect(nightBuyInProfit(1500, 500)).toBe(3);
+    expect(nightBuyInProfit(-2500, 500)).toBe(-5);
+    expect(nightBuyInProfit(0, 500)).toBe(0);
+    expect(nightBuyInProfit(1105, 0)).toBe(0);
+  });
+
+  it("divides buy-ins won by nights played plus two scratch nights", () => {
+    expect(leaderboardAverage(4, 1)).toBeCloseTo(4 / 3);
+    expect(leaderboardAverage(6, 5)).toBeCloseTo(6 / 7);
+    expect(leaderboardAverage(10, 5)).toBeCloseTo(10 / 7);
+    expect(leaderboardAverage(4.8, 6)).toBeCloseTo(4.8 / 8);
+    expect(leaderboardAverage(-3, 1)).toBeCloseTo(-1);
+  });
+
+  it("formats buy-in profit with a signed one-decimal rail number", () => {
+    expect(formatBuyIns(4 / 3)).toBe("+1.3");
+    expect(formatBuyIns(6 / 7)).toBe("+0.9");
+    expect(formatBuyIns(3)).toBe("+3");
+    expect(formatBuyIns(-1)).toBe("−1");
+    expect(formatBuyIns(0)).toBe("0");
+    expect(formatBuyIns(0.04)).toBe("0");
+    expect(formatBuyIns(-0.04)).toBe("0");
   });
 });

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALL_TIME_MONTH_KEY,
   compareMonthKeys,
   formatMonthLabel,
   monthBoundsUtc,
   monthKeyFromDate,
   parseMonthKey,
+  resolveBoardScope,
   resolveMonthKey,
   shiftMonthKey,
 } from "./ledger";
@@ -40,6 +42,19 @@ describe("month keys", () => {
   it("resolves invalid params to current month shape", () => {
     expect(resolveMonthKey("2026-08")).toBe("2026-08");
     expect(resolveMonthKey("nope")).toMatch(/^\d{4}-\d{2}$/);
+  });
+
+  it("treats month=all as all-time, not the current month", () => {
+    expect(resolveBoardScope("all")).toEqual({
+      allTime: true,
+      monthParam: ALL_TIME_MONTH_KEY,
+    });
+    expect(resolveBoardScope("2026-08")).toEqual({
+      allTime: false,
+      monthParam: "2026-08",
+    });
+    expect(resolveBoardScope("nope").allTime).toBe(false);
+    expect(resolveBoardScope("nope").monthParam).toMatch(/^\d{4}-\d{2}$/);
   });
 });
 
