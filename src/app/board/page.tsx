@@ -71,6 +71,11 @@ export default async function BoardPage({
         <RefreshButton className="mt-1" scope="board" />
       </header>
 
+      <p className="max-w-md text-sm leading-snug text-mute">
+        Buy-ins won per night, with two extra even nights counted so a one-off
+        doesn&apos;t run the rail. The small number is nights sat.
+      </p>
+
       {scope.allTime ? null : (
         <MonthPager monthKey={scope.monthParam} currentMonth={currentMonth} />
       )}
