@@ -2,7 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { refreshBoardCache, refreshLiveCache } from "@/app/actions";
+import {
+  refreshBoardCache,
+  refreshLiveCache,
+  refreshSettledCache,
+} from "@/app/actions";
 import { usePendingTransition } from "./PendingProvider";
 
 export function RefreshButton({
@@ -10,7 +14,7 @@ export function RefreshButton({
   scope,
 }: {
   className?: string;
-  scope?: "board" | "live";
+  scope?: "board" | "live" | "settled";
 }) {
   const router = useRouter();
   const [pending, start] = usePendingTransition();
@@ -24,6 +28,7 @@ export function RefreshButton({
         start(async () => {
           if (scope === "board") await refreshBoardCache();
           else if (scope === "live") await refreshLiveCache();
+          else if (scope === "settled") await refreshSettledCache();
           else router.refresh();
           setTimeout(() => setSpin(false), 400);
         });

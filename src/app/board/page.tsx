@@ -7,13 +7,17 @@ import {
   ALL_TIME_MONTH_KEY,
   compareMonthKeys,
   currentMonthKey,
-  formatBuyIns,
   formatMonthLabel,
+  inr,
   resolveBoardScope,
   shiftMonthKey,
 } from "@/lib/ledger";
 
 export const dynamic = "force-dynamic";
+
+function signedInr(n: number) {
+  return `${n > 0 ? "+" : n < 0 ? "−" : ""}${inr(Math.abs(n))}`;
+}
 
 function boardHref(monthParam: string) {
   return `/board?month=${monthParam}`;
@@ -72,8 +76,7 @@ export default async function BoardPage({
       </header>
 
       <p className="max-w-md text-sm leading-snug text-mute">
-        Buy-ins won per night, with two extra even nights counted so a one-off
-        doesn&apos;t run the rail. The small number is nights sat.
+        Rupees won on settled nights. The small number is nights sat.
       </p>
 
       {scope.allTime ? null : (
@@ -109,14 +112,14 @@ export default async function BoardPage({
                 <span className="shrink-0 text-right">
                   <span
                     className={`font-display text-lg tabular ${
-                      row.average > 0
+                      row.net > 0
                         ? "text-gold"
-                        : row.average < 0
+                        : row.net < 0
                           ? "text-clay"
                           : "text-mute"
                     }`}
                   >
-                    {formatBuyIns(row.average)}
+                    {signedInr(row.net)}
                   </span>
                   <span className="ml-2 text-sm tabular text-mute">
                     {row.games}

@@ -37,7 +37,7 @@ export function Receipt({ game }: { game: GameDetail }) {
             {night}
           </h1>
         </div>
-        <RefreshButton className="mt-1" />
+        <RefreshButton className="mt-1" scope="settled" />
       </header>
 
       <article

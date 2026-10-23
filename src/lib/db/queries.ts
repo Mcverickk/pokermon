@@ -4,7 +4,6 @@ import {
   ALL_TIME_MONTH_KEY,
   CAGE_NAME,
   currentMonthKey,
-  leaderboardAverage,
   monthBoundsUtc,
 } from "@/lib/ledger";
 import { getDb } from "./index";
@@ -276,8 +275,6 @@ export type LeaderboardRow = {
   playerId: string;
   name: string;
   net: number;
-  won: number;
-  average: number;
   games: number;
   wins: number;
   losses: number;
@@ -304,7 +301,6 @@ export const getLeaderboard = unstable_cache(
         playerId: players.id,
         name: players.name,
         net: sql<number>`coalesce(sum(${gamePlayers.moneyDiff}), 0)`,
-        won: sql<number>`coalesce(sum((${gamePlayers.moneyDiff})::double precision / nullif(${games.buyInCash}, 0)), 0)`,
         games: sql<number>`count(${gamePlayers.id})`,
         wins: sql<number>`sum(case when ${gamePlayers.moneyDiff} > 0 then 1 else 0 end)`,
         losses: sql<number>`sum(case when ${gamePlayers.moneyDiff} < 0 then 1 else 0 end)`,
@@ -329,27 +325,21 @@ export const getLeaderboard = unstable_cache(
       .groupBy(players.id, players.name);
 
     return rows
-      .map((row) => {
-        const gamesCount = Number(row.games);
-        const won = Number(row.won);
-        return {
-          playerId: row.playerId,
-          name: row.name,
-          net: Number(row.net),
-          won,
-          average: leaderboardAverage(won, gamesCount),
-          games: gamesCount,
-          wins: Number(row.wins),
-          losses: Number(row.losses),
-          even: Number(row.even),
-          biggestWin: Number(row.biggestWin),
-          biggestLoss: Number(row.biggestLoss),
-        };
-      })
+      .map((row) => ({
+        playerId: row.playerId,
+        name: row.name,
+        net: Number(row.net),
+        games: Number(row.games),
+        wins: Number(row.wins),
+        losses: Number(row.losses),
+        even: Number(row.even),
+        biggestWin: Number(row.biggestWin),
+        biggestLoss: Number(row.biggestLoss),
+      }))
       .sort((a, b) => {
-        if (b.average !== a.average) return b.average - a.average;
+        if (b.net !== a.net) return b.net - a.net;
         if (b.games !== a.games) return b.games - a.games;
-        return b.won - a.won;
+        return a.name.localeCompare(b.name);
       });
   },
   ["leaderboard"],

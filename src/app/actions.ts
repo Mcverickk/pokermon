@@ -98,6 +98,11 @@ export async function refreshBoardCache() {
   refresh();
 }
 
+export async function refreshSettledCache() {
+  updateTag(SETTLED_GAME_TAG);
+  refresh();
+}
+
 export async function refreshLiveCache() {
   updateTag(LIVE_GAME_TAG);
   refresh();

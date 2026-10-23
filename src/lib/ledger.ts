@@ -53,17 +53,6 @@ export function moneyDiff(
   );
 }
 
-export const LEADERBOARD_PRIOR_GAMES = 2;
-
-export function nightBuyInProfit(moneyDiff: number, buyInCash: number): number {
-  if (buyInCash === 0) return 0;
-  return moneyDiff / buyInCash;
-}
-
-export function leaderboardAverage(won: number, nightsPlayed: number): number {
-  return won / (nightsPlayed + LEADERBOARD_PRIOR_GAMES);
-}
-
 export function handleTotal(totalBuyIns: number, buyInCash: number): number {
   return totalBuyIns * buyInCash;
 }
@@ -279,15 +268,6 @@ export function inr(n: number): string {
 
 export function chips(n: number): string {
   return new Intl.NumberFormat("en-IN").format(n);
-}
-
-export function formatBuyIns(n: number): string {
-  const tenths = Math.round(n * 10) / 10;
-  if (Math.abs(tenths) < 1e-9) return "0";
-  const sign = tenths > 0 ? "+" : "−";
-  const abs = Math.abs(tenths);
-  const body = Number.isInteger(abs) ? String(abs) : abs.toFixed(1);
-  return `${sign}${body}`;
 }
 
 export const HOUSE_TZ = "Asia/Kolkata";
